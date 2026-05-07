@@ -268,6 +268,34 @@ Phase 2.2 baseline. When true, the host applies a hard-coded
 `StrategyDraft` named **`Preview Scalper`** right after attach and pushes
 it into the panel via `SetStrategyDraft(...)`.
 
+#### Phase 2.3 validation note — 2026-05-07
+
+Manually validated in NinjaTrader on a clean Playback/Sim chart with
+`EnableDraftPreview=true`, after the panel-flat fix (`1eb7163`
+`fix(panel): clear entry average when flat`) was applied and recompiled.
+Confirmed observations:
+
+- NinjaScript compile succeeded after the fix.
+- `Preview Scalper` rendered in Strategy with all expected Entry / Stop /
+  Takes / Protection / Risk preview values.
+- A manual buy market (1 contract) via Chart Trader/SuperDOM updated the
+  header to `Long · qty 1 · avg <fill> · wo 0` and the `ACTIVE POSITION`
+  card to `Entry/Avg=<fill>`, `Last fill=<fill>`.
+- A manual sell that zeroed the position updated the header to
+  `Flat · qty 0 · avg - · wo 0` and `ACTIVE POSITION` to `Entry/Avg=-`,
+  `Last fill=<last fill>` — verifying the fix in `1eb7163`.
+- The draft preview values stayed visible in the Strategy / Entry / Takes
+  / Stop / Protection / Risk cards while observed state changed.
+- Every actionable control remained visibly disabled and unresponsive.
+- No ChartGuard-issued order was observed: no `Bridge submitted ...`, no
+  `DryRun SubmitProtectedEntry ...`, no `Bridge enabled for controlled
+  test ...`.
+
+Items marked off below reflect exactly what was observed in this session.
+Scenarios not exercised — `EnableDraftPreview=false` reload, re-add with
+`EnableDraftPreview=false`, horizontal resize, detach, click/hover
+absence-of-`[EssencialCommand]` check — remain unchecked.
+
 The hard-coded preview draft (Phase 2.3 reference values):
 
 - Strategy name: `Preview Scalper`
@@ -296,42 +324,42 @@ mark a box that is implied by another box; observe each scenario directly.
 
 #### Preview behavior (`EnableDraftPreview=true`)
 
-- [ ] Add the host indicator with `EnableDraftPreview=true`. Output Tab 1
+- [x] Add the host indicator with `EnableDraftPreview=true`. Output Tab 1
   shows `[EssencialUI] PanelHost draft preview applied strategy=Preview Scalper`
-  shortly after the attach lines.
-- [ ] Strategy combobox preview text reads `Preview Scalper`.
-- [ ] Entry card reflects the draft values: `Type=Market`, `Qty=2`,
-  `Sizing=Fixed`, `Unit=Ticks`, `Stop=40`, `Target=80`.
-- [ ] Takes card text becomes a non-italic summary listing both
+  shortly after the attach lines. *(Phase 2.3 — 2026-05-07)*
+- [x] Strategy combobox preview text reads `Preview Scalper`. *(Phase 2.3 — 2026-05-07)*
+- [x] Entry card reflects the draft values: `Type=Market`, `Qty=2`,
+  `Sizing=Fixed`, `Unit=Ticks`, `Stop=40`, `Target=80`. *(Phase 2.3 — 2026-05-07)*
+- [x] Takes card text becomes a non-italic summary listing both
   `T1 x1 @ 40 Ticks` and `T2 x1 @ 80 Ticks` (in the format the panel uses
-  for `BuildTargetsSummary`).
-- [ ] Stop card `Current` row shows `40 Ticks`. Entry `Stop` field also
-  reflects `40 Ticks` (mirrored by `SetStopDraft`).
-- [ ] `ACTIVE POSITION` summary rows reflect the draft preview:
+  for `BuildTargetsSummary`). *(Phase 2.3 — 2026-05-07)*
+- [x] Stop card `Current` row shows `40 Ticks`. Entry `Stop` field also
+  reflects `40 Ticks` (mirrored by `SetStopDraft`). *(Phase 2.3 — 2026-05-07)*
+- [x] `ACTIVE POSITION` summary rows reflect the draft preview:
   `Stop=40 Ticks`, `Targets` shows the same summary as the Takes card,
-  `Protection=BE | Lock 1R | Trail`.
-- [ ] Risk card preview rows show `Daily limit=preview only`,
+  `Protection=BE | Lock 1R | Trail`. *(Phase 2.3 — 2026-05-07)*
+- [x] Risk card preview rows show `Daily limit=preview only`,
   `Status=draft preview`, `Block=-`. The Risk `Mode` combobox preview
-  text reads `Alert`.
+  text reads `Alert`. *(Phase 2.3 — 2026-05-07)*
 
 #### Read-only contract preserved while preview is active
 
-- [ ] All actionable controls remain visibly disabled and unresponsive:
+- [x] All actionable controls remain visibly disabled and unresponsive:
   Strategy combobox + `+`/`✎`/`❏`/`✕` buttons, Entry comboboxes/textboxes
   + `BUY`/`SELL`/`PANIC` buttons, Takes buttons, Stop edit, Protection
-  buttons, Risk `Mode` combobox, header `⚙` gear.
+  buttons, Risk `Mode` combobox, header `⚙` gear. *(Phase 2.3 — 2026-05-07)*
 - [ ] No `[EssencialCommand] ...` log line is emitted by clicking,
   hovering, or focusing any preview-populated control.
-- [ ] No `[EssencialOrder] Bridge submitted ...` line appears.
-- [ ] The NinjaTrader Orders tab shows zero orders created by ChartGuard.
-- [ ] The snapshot (Flat / Long / Short) still updates the header summary
+- [x] No `[EssencialOrder] Bridge submitted ...` line appears. *(Phase 2.3 — 2026-05-07)*
+- [x] The NinjaTrader Orders tab shows zero orders created by ChartGuard. *(Phase 2.3 — 2026-05-07)*
+- [x] The snapshot (Flat / Long / Short) still updates the header summary
   and the `ACTIVE POSITION` Direction/Qty/Entry-Avg/Last fill rows from
   observed state — the draft preview only fills the rows that observed
-  state would not provide.
-- [ ] EventBridge updates from a manual buy market via Chart Trader/SuperDOM
+  state would not provide. *(Phase 2.3 — 2026-05-07; Flat path verifies fix `1eb7163`: header reads `avg -` and `ACTIVE POSITION → Entry/Avg = -` when flat, while `Last fill` keeps the last observed price.)*
+- [x] EventBridge updates from a manual buy market via Chart Trader/SuperDOM
   still flip the header chip and `ACTIVE POSITION` direction/qty/avg/last
   fill exactly as in Phase 2.2; the draft preview does not block or
-  override observed updates.
+  override observed updates. *(Phase 2.3 — 2026-05-07)*
 - [ ] Horizontal panel resize via the `Thumb` grip continues to work.
 - [ ] Detach via Indicators → Remove clears the panel/grip/columns and
   emits the same `panel removed` / `unsubscribed` / `detached` lines as
@@ -341,14 +369,14 @@ mark a box that is implied by another box; observe each scenario directly.
 
 #### Safety grep targets (run at the end of the Phase 2.3 task)
 
-- [ ] No `Account.Submit`, `Account.CreateOrder`, `AtmStrategyCreate`, or
+- [x] No `Account.Submit`, `Account.CreateOrder`, `AtmStrategyCreate`, or
   `EnableForControlledTest` introduced anywhere outside the gated
-  `NinjaTraderAccountAdapter`.
-- [ ] No `Click`, `SelectionChanged`, `TextChanged`, `MouseDown`, `MouseUp`,
+  `NinjaTraderAccountAdapter`. *(Phase 2.3 — 2026-05-07: grep across `src/` returned matches only inside the gated adapter and inside negative-statement comments under host/probe/READMEs.)*
+- [x] No `Click`, `SelectionChanged`, `TextChanged`, `MouseDown`, `MouseUp`,
   `PreviewMouse*`, `ContextMenu`, `KeyBinding`, or `InputBindings` handler
-  attached anywhere under `src/EssencialChartGuard/AddOns/Panel/`.
-- [ ] No `using NinjaTrader.Cbi` or `using NinjaTrader.Data` introduced
+  attached anywhere under `src/EssencialChartGuard/AddOns/Panel/`. *(Phase 2.3 — 2026-05-07: only matches under `AddOns/Panel/` are the existing comments declaring "we do NOT attach …".)*
+- [x] No `using NinjaTrader.Cbi` or `using NinjaTrader.Data` introduced
   under `src/EssencialChartGuard/AddOns/SafeCore/` or
-  `src/EssencialChartGuard/AddOns/Panel/`.
-- [ ] No persistence APIs (`File.*`, `XmlSerializer`, settings storage)
-  introduced anywhere on the host or panel for this phase.
+  `src/EssencialChartGuard/AddOns/Panel/`. *(Phase 2.3 — 2026-05-07: 0 matches in either tree.)*
+- [x] No persistence APIs (`File.*`, `XmlSerializer`, settings storage)
+  introduced anywhere on the host or panel for this phase. *(Phase 2.3 — 2026-05-07: 0 matches in `AddOns/Panel/` and `Indicators/ChartGuardPanelHost/`.)*
