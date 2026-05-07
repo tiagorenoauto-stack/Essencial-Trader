@@ -79,6 +79,12 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
         private static readonly Brush BrushActiveStop = Freeze(FromHex("#D14B4B"));
         private static readonly Brush BrushActiveTarget = Freeze(FromHex("#3FB35E"));
 
+        // Label background: dark with ~70% opacity so the small ECG label
+        // stays legible over either green or red candles. Outline matches
+        // the panel's subtle border color so the chip blends with the panel.
+        private static readonly Brush BrushLabelFill = Freeze(FromHex("#B30E0F12"));
+        private static readonly Brush BrushLabelOutline = Freeze(FromHex("#262A33"));
+
         public ChartGuardReadOnlyLineRenderer(Indicator host, ISafeCoreLogger logger)
         {
             if (host == null) throw new ArgumentNullException("host");
@@ -150,7 +156,16 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
 
         // Single line + optional label rendering helper. When show is false,
         // both the line and its label are removed by tag. When show is true,
-        // both are upserted.
+        // both are upserted using NinjaScript drawing tools with stable tags.
+        //
+        // Visual choices made here (and only here):
+        //   * Line: full Draw.HorizontalLine overload with explicit width and
+        //     dash style. NinjaTrader's HorizontalLine renders a native price
+        //     marker on the right axis automatically, matching how a manual
+        //     horizontal-line drawing tool looks.
+        //   * Label: Draw.Text with a small opaque background so the text
+        //     stays legible over candles. Anchored a few bars to the left of
+        //     the rightmost bar so it does not overlap the price marker.
         private void ApplyLine(
             string lineTag, string labelTag, bool show, double price, string label, Brush brush, bool dashed)
         {
@@ -163,7 +178,8 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
 
             try
             {
-                Draw.HorizontalLine(host, lineTag, price, brush);
+                DashStyleHelper dash = dashed ? DashStyleHelper.Dash : DashStyleHelper.Solid;
+                Draw.HorizontalLine(host, lineTag, false, price, brush, dash, 2);
                 activeTags[lineTag] = true;
             }
             catch (Exception ex)
@@ -181,12 +197,14 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
 
             try
             {
-                // Place the label slightly above the line on the rightmost bar so
-                // it sits at the chart edge and does not overlap candles.
-                int barsAgo = 0;
+                // Anchor the label a few bars to the left of the rightmost bar
+                // so it does not overlap the native price marker the line just
+                // produced. The opaque background makes the small text legible
+                // over either green or red candles.
+                int barsAgo = 6;
                 Draw.Text(host, labelTag, false, label, barsAgo, price, 0, brush,
-                    new SimpleFont("Segoe UI", 10), TextAlignment.Right,
-                    System.Windows.Media.Brushes.Transparent, System.Windows.Media.Brushes.Transparent, 0);
+                    new SimpleFont("Segoe UI", 11) { Bold = true }, TextAlignment.Right,
+                    BrushLabelOutline, BrushLabelFill, 90);
                 activeTags[labelTag] = true;
             }
             catch (Exception ex)
