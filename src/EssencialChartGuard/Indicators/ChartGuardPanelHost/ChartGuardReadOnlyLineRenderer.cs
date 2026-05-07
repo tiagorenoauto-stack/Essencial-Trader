@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Windows;
 using System.Windows.Media;
+using NinjaTrader.Gui.Tools;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel.ChartLines;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.SafeCore.Services;
 using NinjaTrader.NinjaScript.DrawingTools;
@@ -161,8 +163,7 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
 
             try
             {
-                DashStyleHelper dash = dashed ? DashStyleHelper.Dash : DashStyleHelper.Solid;
-                Draw.HorizontalLine(host, lineTag, false, price, brush, dash, 1);
+                Draw.HorizontalLine(host, lineTag, price, brush);
                 activeTags[lineTag] = true;
             }
             catch (Exception ex)
