@@ -253,6 +253,13 @@ Goal:
 - Add labels.
 - No click interaction yet.
 
+> **Numbering note:** the newer `docs/plano-integrado-chartguard-pt.md`
+> moves chart lines to *Fase 3* and dry-run commands to *Fase 4*. The
+> technical specification for chart lines lives in
+> `docs/chart-lines-readonly-phase3.md` regardless of which phase number
+> the parent plan uses. Both phases describe the same read-only chart
+> line goal.
+
 ### Phase 3 — Dry-Run Commands From Panel
 
 Goal:

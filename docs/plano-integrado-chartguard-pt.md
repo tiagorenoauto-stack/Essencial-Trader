@@ -428,6 +428,13 @@ Objetivo:
 - sem clique;
 - comparar visual com linhas nativas.
 
+A especificação técnica desta fase (linhas suportadas, fontes de dados,
+arquitetura sugerida `ChartGuardLineState` + `ChartGuardReadOnlyLineRenderer`,
+contrato de segurança, regras visuais e checklist da Fase 3.1) está em
+`docs/chart-lines-readonly-phase3.md`. A implementação só começa depois que
+esse documento estiver revisado e o checklist da Fase 3.1 estiver
+referenciado a partir de `docs/manual-test-checklist.md`.
+
 ### Fase 4 — Comandos Dry-Run
 
 Objetivo:

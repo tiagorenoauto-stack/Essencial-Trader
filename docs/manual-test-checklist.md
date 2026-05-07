@@ -380,3 +380,18 @@ mark a box that is implied by another box; observe each scenario directly.
   `src/EssencialChartGuard/AddOns/Panel/`. *(Phase 2.3 — 2026-05-07: 0 matches in either tree.)*
 - [x] No persistence APIs (`File.*`, `XmlSerializer`, settings storage)
   introduced anywhere on the host or panel for this phase. *(Phase 2.3 — 2026-05-07: 0 matches in `AddOns/Panel/` and `Indicators/ChartGuardPanelHost/`.)*
+
+## Phase 3 — Read-Only Chart Lines
+
+The technical specification for read-only chart lines (Phase 3 in
+`docs/plano-integrado-chartguard-pt.md`; "Phase 2 — Chart Lines
+Read-Only" in the older `docs/chartguard-product-map.md`) lives in
+**`docs/chart-lines-readonly-phase3.md`**. That document is
+specification-only — no implementation code exists yet — and includes
+the manual checklist for Phase 3.1 (the implementation step).
+
+When implementation lands, copy the Phase 3.1 manual-checklist items
+from `docs/chart-lines-readonly-phase3.md` (Section 7) into this file
+under a new section, and only then start ticking boxes against
+NinjaTrader observation. Do not pre-tick any item from this section
+while no chart-line code exists.
