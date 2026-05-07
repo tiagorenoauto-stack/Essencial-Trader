@@ -14,6 +14,7 @@ using NinjaTrader.Gui.Chart;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.NinjaTraderBridge;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel;
+using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel.ChartLines;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel.Models;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.SafeCore.Services;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.SafeCore.State;
@@ -61,6 +62,13 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
         private static readonly object PanelTagSentinel = new object();
         private bool panelInjected;
 
+        // ---- Read-only chart line renderer (Phase 3.1) ----
+        // Built in State.Configure, fed by MaybeUpdateChartLines() whenever
+        // the observed snapshot or the draft preview changes, and detached
+        // in State.Terminated. The renderer never sends, modifies, or
+        // cancels any order; it only draws horizontal lines + labels.
+        private ChartGuardReadOnlyLineRenderer lineRenderer;
+
         protected override void OnStateChange()
         {
             if (State == State.SetDefaults)
@@ -82,6 +90,7 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
                 hostLogger = new OutputTabSafeCoreLogger();
                 observedState = new ObservedAccountState();
                 router = new OrderEventRouter(hostLogger, observedState);
+                lineRenderer = new ChartGuardReadOnlyLineRenderer(this, hostLogger);
             }
             else if (State == State.DataLoaded)
             {
@@ -231,6 +240,20 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
                 }
             }
             SafeDisposeBridge();
+
+            // Remove every read-only chart line we drew before tearing down
+            // the panel. Doing this before the panel removal keeps the
+            // chart visually consistent during the teardown frame.
+            if (lineRenderer != null)
+            {
+                try { lineRenderer.DetachAll(); }
+                catch (Exception ex)
+                {
+                    if (log != null)
+                        log.UI("PanelHost line renderer detach error ex=" + ex.GetType().Name + ":" + ex.Message);
+                }
+                lineRenderer = null;
+            }
 
             RemovePanelFromUi();
 
@@ -502,6 +525,11 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
 
                 ObservedAccountSnapshotDto dto = s.BuildSnapshotDto();
                 p.SetObservedState(dto);
+
+                // Phase 3.1: refresh the read-only chart lines from the same
+                // snapshot the panel just consumed. The renderer is idempotent
+                // per tag, so re-pushing identical state is a cheap no-op.
+                MaybeUpdateChartLines();
             }
             catch (Exception ex)
             {
@@ -660,12 +688,229 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
                 if (hostLogger != null)
                     hostLogger.UI("PanelHost draft preview applied strategy=" +
                         (draft != null ? draft.Name : "?"));
+                // Phase 3.1: also push the same draft + the latest observed
+                // snapshot into the chart line renderer. The renderer is a
+                // pure visual surface; it never creates a command path.
+                MaybeUpdateChartLines();
             }
             catch (Exception ex)
             {
                 if (hostLogger != null)
                     hostLogger.UI("PanelHost draft preview error ex=" + ex.GetType().Name + ":" + ex.Message);
             }
+        }
+
+        // ============================================================================
+        // Read-only chart lines (Phase 3.1)
+        // ============================================================================
+
+        // Computes the current ChartGuardLineState from the observed snapshot and the
+        // hard-coded preview StrategyDraft (when EnableDraftPreview is true), then
+        // hands it to the renderer. When EnableDraftPreview is false, the host pushes
+        // an "all-hidden" state to make sure no leftover lines remain on the chart.
+        //
+        // No order, command, or trading API is touched here. The only NinjaTrader
+        // primitive this method reads is Instrument.MasterInstrument.TickSize, which
+        // is required to translate a ticks-based draft (stop=40 ticks, etc.) into
+        // a chart price. If TickSize is unavailable or the reference price is not
+        // safe, the draft lines stay hidden and the host logs the skip reason.
+        private void MaybeUpdateChartLines()
+        {
+            ChartGuardReadOnlyLineRenderer r = lineRenderer;
+            if (r == null) return;
+
+            ObservedAccountState obs = observedState;
+            ObservedAccountSnapshotDto dto = obs != null ? obs.BuildSnapshotDto() : default(ObservedAccountSnapshotDto);
+
+            ChartGuardLineState state = BuildLineState(dto, EnableDraftPreview);
+            r.ApplyState(state);
+        }
+
+        // Pure conversion: observed snapshot + preview-on flag => line state.
+        // Kept testable in isolation. The Instrument lookup happens through the
+        // host's own Instrument property (not a NinjaTrader.Cbi import inside
+        // SafeCore/Panel/Models), and only TickSize / FullName are used.
+        private ChartGuardLineState BuildLineState(ObservedAccountSnapshotDto dto, bool draftPreviewOn)
+        {
+            ChartGuardLineState state = ChartGuardLineState.Empty();
+
+            bool hasOpenPosition = dto.AbsoluteQuantity > 0
+                && (dto.Position == ObservedPosition.Long || dto.Position == ObservedPosition.Short);
+            bool hasLastPrice = dto.LastPrice.HasValue
+                && !double.IsNaN(dto.LastPrice.Value)
+                && !double.IsInfinity(dto.LastPrice.Value)
+                && dto.LastPrice.Value > 0.0;
+
+            // ---- Entry / Avg ----
+            if (hasOpenPosition && hasLastPrice)
+            {
+                state.ShowEntryAvg = true;
+                state.EntryAvgPrice = dto.LastPrice.Value;
+                state.EntryAvgLabel = "ECG Entry " + FormatPrice(dto.LastPrice.Value);
+            }
+
+            // ---- Last fill ----
+            if (hasLastPrice)
+            {
+                state.ShowLastFill = true;
+                state.LastFillPrice = dto.LastPrice.Value;
+                state.LastFillLabel = "ECG Last " + FormatPrice(dto.LastPrice.Value);
+            }
+
+            // ---- Draft lines (only when EnableDraftPreview is true AND the
+            // chart instrument matches the snapshot AND we have a safe reference
+            // price + a valid tick size). Otherwise we deliberately do not draw
+            // and we log the skip reason. The reference price for ticks-based
+            // drafts is the observed last price, never a synthesized value.
+            if (draftPreviewOn)
+            {
+                double tickSize = SafeTickSize();
+                bool tickOk = tickSize > 0.0;
+                bool instrumentMatches = SnapshotMatchesChartInstrument(dto);
+
+                if (!tickOk)
+                {
+                    if (hostLogger != null)
+                        hostLogger.UI("PanelHost chart lines skipped: tick size unavailable for chart instrument");
+                }
+                else if (!instrumentMatches)
+                {
+                    if (hostLogger != null)
+                        hostLogger.UI("PanelHost chart lines skipped: snapshot instrument does not match chart instrument");
+                }
+                else if (!hasLastPrice)
+                {
+                    if (hostLogger != null)
+                        hostLogger.UI("PanelHost chart lines skipped: no safe reference price for draft levels");
+                }
+                else
+                {
+                    int sign = ResolveDraftDirectionSign(dto);
+                    if (sign == 0)
+                    {
+                        // Flat / Unknown: we cannot orient stop/targets without a side.
+                        if (hostLogger != null)
+                            hostLogger.UI("PanelHost chart lines skipped: no observed direction (Flat/Unknown) -- draft levels need a side");
+                    }
+                    else
+                    {
+                        double reference = dto.LastPrice.Value;
+                        StrategyDraft draft = BuildPreviewStrategyDraft();
+
+                        // Draft stop: 40 ticks against the side.
+                        int stopTicks = ParseTicks(draft != null && draft.DefaultStop != null
+                            ? draft.DefaultStop.Current : null, defaultTicks: 40);
+                        if (stopTicks > 0)
+                        {
+                            double stopPrice = reference - sign * stopTicks * tickSize;
+                            state.ShowDraftStop = true;
+                            state.DraftStopPrice = stopPrice;
+                            state.DraftStopLabel = "ECG Stop Draft " + FormatPrice(stopPrice);
+                        }
+
+                        // Draft targets in favor of the side.
+                        TakeTargetDraft[] targets = draft != null ? draft.DefaultTargets : null;
+                        TakeTargetDraft t1 = targets != null && targets.Length > 0 ? targets[0] : null;
+                        TakeTargetDraft t2 = targets != null && targets.Length > 1 ? targets[1] : null;
+
+                        int t1Ticks = ParseTicks(t1 != null ? t1.Value : null, defaultTicks: 40);
+                        if (t1Ticks > 0)
+                        {
+                            double tp = reference + sign * t1Ticks * tickSize;
+                            state.ShowDraftT1 = true;
+                            state.DraftT1Price = tp;
+                            state.DraftT1Label = "ECG T1 Draft " + FormatPrice(tp);
+                        }
+
+                        int t2Ticks = ParseTicks(t2 != null ? t2.Value : null, defaultTicks: 80);
+                        if (t2Ticks > 0)
+                        {
+                            double tp = reference + sign * t2Ticks * tickSize;
+                            state.ShowDraftT2 = true;
+                            state.DraftT2Price = tp;
+                            state.DraftT2Label = "ECG T2 Draft " + FormatPrice(tp);
+                        }
+                    }
+                }
+            }
+
+            return state;
+        }
+
+        // Direction sign for draft level orientation. Long=+1, Short=-1, otherwise 0
+        // (flat/unknown -> caller should not draw drafts).
+        private static int ResolveDraftDirectionSign(ObservedAccountSnapshotDto dto)
+        {
+            if (dto.Position == ObservedPosition.Long && dto.AbsoluteQuantity > 0) return +1;
+            if (dto.Position == ObservedPosition.Short && dto.AbsoluteQuantity > 0) return -1;
+            return 0;
+        }
+
+        // Reads the chart instrument's tick size. Wrapped because NT can throw
+        // during very early/late lifecycle.
+        private double SafeTickSize()
+        {
+            try
+            {
+                if (Instrument != null && Instrument.MasterInstrument != null)
+                {
+                    double t = Instrument.MasterInstrument.TickSize;
+                    if (!double.IsNaN(t) && !double.IsInfinity(t) && t > 0.0) return t;
+                }
+            }
+            catch
+            {
+                // ignore -- caller treats as "unavailable"
+            }
+            return 0.0;
+        }
+
+        // True when the host has no instrument scope (FilterByChartInstrument=false
+        // and DTO has no instrument), or when the DTO instrument matches the chart
+        // instrument FullName. False when scopes disagree -- we refuse to draw
+        // draft levels in that case.
+        private bool SnapshotMatchesChartInstrument(ObservedAccountSnapshotDto dto)
+        {
+            try
+            {
+                string dtoInstrument = dto.InstrumentFullName ?? string.Empty;
+                string chartInstrument = Instrument != null ? (Instrument.FullName ?? string.Empty) : string.Empty;
+
+                if (string.IsNullOrEmpty(dtoInstrument) || dtoInstrument == "?")
+                    return !FilterByChartInstrument;
+
+                if (string.IsNullOrEmpty(chartInstrument)) return false;
+                return string.Equals(dtoInstrument, chartInstrument, StringComparison.Ordinal);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Parses a draft value like "40" or "40 Ticks" into a tick count. Returns
+        // defaultTicks when the value is null/empty so the demo preview always
+        // produces lines even if a future StopDraft.Current loses its number.
+        private static int ParseTicks(string value, int defaultTicks)
+        {
+            if (string.IsNullOrEmpty(value)) return defaultTicks > 0 ? defaultTicks : 0;
+            string trimmed = value.Trim();
+            string digits = string.Empty;
+            for (int i = 0; i < trimmed.Length; i++)
+            {
+                char c = trimmed[i];
+                if (c >= '0' && c <= '9') digits += c;
+                else if (digits.Length > 0) break;
+            }
+            int parsed;
+            if (int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed) && parsed > 0)
+                return parsed;
+            return defaultTicks > 0 ? defaultTicks : 0;
+        }
+
+        private static string FormatPrice(double price)
+        {
+            return price.ToString("0.#####", CultureInfo.InvariantCulture);
         }
 
         // Hard-coded "Preview Scalper" demo draft. Pure data only -- no NinjaTrader trading

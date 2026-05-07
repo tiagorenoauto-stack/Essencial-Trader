@@ -386,12 +386,135 @@ mark a box that is implied by another box; observe each scenario directly.
 The technical specification for read-only chart lines (Phase 3 in
 `docs/plano-integrado-chartguard-pt.md`; "Phase 2 — Chart Lines
 Read-Only" in the older `docs/chartguard-product-map.md`) lives in
-**`docs/chart-lines-readonly-phase3.md`**. That document is
-specification-only — no implementation code exists yet — and includes
-the manual checklist for Phase 3.1 (the implementation step).
+**`docs/chart-lines-readonly-phase3.md`**. The implementation landed in
+Phase 3.1 below.
 
-When implementation lands, copy the Phase 3.1 manual-checklist items
-from `docs/chart-lines-readonly-phase3.md` (Section 7) into this file
-under a new section, and only then start ticking boxes against
-NinjaTrader observation. Do not pre-tick any item from this section
-while no chart-line code exists.
+### Phase 3.1 — Draft preview chart line implementation
+
+This section gates the first read-only chart line code shipped by
+`ChartGuardPanelHost` + `ChartGuardReadOnlyLineRenderer` +
+`ChartGuardLineState` (under `AddOns/Panel/ChartLines/`). The renderer
+draws horizontal lines and labels through `Draw.HorizontalLine` /
+`Draw.Text` only; it never subscribes to mouse / keyboard / drag /
+context-menu events, never modifies orders, and never enables any
+control on the side panel.
+
+Mark each item below only after manual NinjaTrader observation. **Do
+not pre-tick any item.** When unsure whether a behavior was observed,
+leave it unchecked.
+
+The preview reference values (Phase 3.1) come from the same hard-coded
+`Preview Scalper` `StrategyDraft` introduced in Phase 2.3:
+
+- `StopDraft.Current = "40 Ticks"` → 40 ticks.
+- `TakeTargetDraft[0].Value = "40"` (Ticks) → 40 ticks.
+- `TakeTargetDraft[1].Value = "80"` (Ticks) → 80 ticks.
+- Direction sign: `Long` → stop below / targets above; `Short` → stop
+  above / targets below; `Flat` / `Unknown` → draft lines are skipped.
+
+Draft levels require a **safe reference price**: a usable
+`ObservedAccountSnapshotDto.LastPrice` from a snapshot whose
+instrument matches the chart instrument, plus a positive
+`Instrument.MasterInstrument.TickSize`. If any of those is missing,
+the host **must** skip the draft lines and emit a `[EssencialUI]
+PanelHost chart lines skipped: ...` line stating why.
+
+#### Default behavior (`EnableDraftPreview=false`)
+
+- [ ] Recompile and reload the host on a clean chart with the default
+  `EnableDraftPreview=false`. No `ECG-ReadOnlyLine-*` artifact is
+  drawn on the chart.
+- [ ] Output Tab 1 shows no `[EssencialUI] PanelHost chart lines ...`
+  attempt during the session while the default value is in effect
+  (the host does not skip-log when the toggle is off either).
+- [ ] After a manual buy market and a manual sell that closes it via
+  Chart Trader/SuperDOM, no `ECG Entry`, `ECG Last`, `ECG Stop Draft`,
+  `ECG T1 Draft`, or `ECG T2 Draft` line appears.
+
+#### Lines appear when `EnableDraftPreview=true`
+
+- [ ] Add the host with `EnableDraftPreview=true` on a chart whose
+  instrument matches the configured filter. Within ~500ms of attach,
+  observe one `ECG Last` line at the snapshot last price (when
+  available). When the snapshot is `Flat` and there is no last price
+  yet, no chart lines appear; the snapshot row in `OBSERVATION`
+  still says `applied flat qty=0`.
+- [ ] Place a manual buy market via Chart Trader/SuperDOM (1 contract).
+  Within ~500ms the chart shows:
+  - `ECG Entry <fill>` line (gold, solid).
+  - `ECG Last <fill>` line (muted gray, dashed).
+  - `ECG Stop Draft <fill - 40·tick>` line (red, dashed).
+  - `ECG T1 Draft <fill + 40·tick>` line (green, dashed).
+  - `ECG T2 Draft <fill + 80·tick>` line (green, dashed).
+- [ ] Each line carries the expected `ECG …` label text aligned to the
+  chart's right edge.
+- [ ] Sell short (1 contract) instead: `ECG Stop Draft` is now
+  `<fill + 40·tick>`, `ECG T1 Draft` is `<fill - 40·tick>`, `ECG T2
+  Draft` is `<fill - 80·tick>` (drafts flip with the side).
+
+#### Lines update from observed state
+
+- [ ] A manual sell that closes the long removes `ECG Entry` and
+  removes the `ECG Stop Draft` / `ECG T1 Draft` / `ECG T2 Draft`
+  lines (no observed direction → drafts skipped). `ECG Last` keeps
+  showing the last execution price. Output Tab 1 shows
+  `PanelHost chart lines skipped: no observed direction (Flat/Unknown) -- draft levels need a side`.
+- [ ] Re-entering long brings the four position-dependent lines back at
+  the new fill price.
+- [ ] When the chart instrument does not match the snapshot
+  instrument (e.g. when the host is configured against a different
+  instrument), Output Tab 1 shows
+  `PanelHost chart lines skipped: snapshot instrument does not match chart instrument`
+  and no `ECG-ReadOnlyLine-*` line is drawn.
+
+#### Read-only contract preserved
+
+- [ ] No `ECG-ReadOnlyLine-*` artifact is draggable: hovering it does
+  not show a drag affordance and dragging it does not modify any
+  order. The NinjaTrader Orders tab does not change because of any
+  chart-line interaction.
+- [ ] Right-clicking a line shows the **native** NinjaTrader context
+  menu (no ChartGuard-specific entries).
+- [ ] Clicking a line does not emit any `[EssencialCommand] ...` line
+  in Output Tab 1.
+- [ ] The chart remains usable: cursor crosshair, drawing tools, Chart
+  Trader, and panning continue to work.
+- [ ] No `[EssencialOrder] Bridge submitted ...`, no
+  `[EssencialCommand] DryRun SubmitProtectedEntry ...`, no
+  `[EssencialOrder] Bridge enabled for controlled test ...` line
+  appears during the entire Phase 3.1 session.
+- [ ] The NinjaTrader Orders tab shows zero orders created by
+  ChartGuard.
+
+#### Cleanup
+
+- [ ] Removing the indicator removes every `ECG-ReadOnlyLine-*`
+  artifact from the chart. No leftover `ECG Entry`, `ECG Last`,
+  `ECG Stop Draft`, `ECG T1 Draft`, or `ECG T2 Draft` remains.
+- [ ] Output Tab 1 shows `[EssencialUI] PanelHost line renderer
+  detached (all read-only lines removed)` followed by the standard
+  `panel removed` / `EventBridge unsubscribed` / `PanelHost detached`
+  lines.
+- [ ] Recompile NinjaScript while the host is attached, then re-add
+  the indicator: exactly one set of read-only lines is visible
+  afterwards (no duplicates from a stale runtime instance).
+- [ ] Restart NinjaTrader after a session: no stale
+  `ECG-ReadOnlyLine-*` artifact remains on any chart.
+
+#### Safety greps (run at the end of the Phase 3.1 task)
+
+- [ ] No `Account.Submit`, `Account.CreateOrder`, `AtmStrategyCreate`,
+  or `EnableForControlledTest` introduced anywhere outside the gated
+  `NinjaTraderAccountAdapter`.
+- [ ] No `Click`, `MouseDown`, `MouseUp`, `MouseMove`,
+  `MouseLeftButtonDown`, `MouseRightButtonDown`, `PreviewMouse*`,
+  `MouseEnter`, `MouseLeave`, `DoubleClick`, `Drag*`, `Drop*`,
+  `KeyDown`, `KeyUp`, `KeyBinding`, `InputBindings`, `ContextMenu`,
+  `SelectionChanged`, or `TextChanged` handler introduced under
+  `AddOns/Panel/`, `AddOns/Panel/ChartLines/`, or
+  `Indicators/ChartGuardPanelHost/`.
+- [ ] No `using NinjaTrader.Cbi` or `using NinjaTrader.Data`
+  introduced in `AddOns/SafeCore/`, `AddOns/Panel/`, or
+  `AddOns/Panel/ChartLines/`.
+- [ ] No persistence APIs (`File.*`, `XmlSerializer`,
+  `JsonSerializer`, settings storage) introduced by Phase 3.1.
