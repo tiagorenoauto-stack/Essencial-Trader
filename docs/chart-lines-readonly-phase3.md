@@ -1,8 +1,12 @@
 # Phase 3 — Read-Only Chart Lines (Specification)
 
-> **Status:** specification only. No code is written in this phase.
-> Implementation is gated by the manual checklist at the end of this
-> document and by the safety contract below.
+> **Status:** Phase 3.1 (the first implementation step) shipped in
+> commit `e0d2cdb` with subsequent build/visibility fixes (`d0fa1ca`,
+> `a114cec`, `964727c`). Phase 3.2 (visual polish: native-style price
+> markers, multi-line labels with side/quantity badge, user
+> customization) is specified in
+> `docs/chart-lines-readonly-phase3.2-visual.md` and not yet
+> implemented.
 
 This document specifies how Essencial ChartGuard will eventually render
 informative lines on the chart for position, entry/avg, last fill, draft
@@ -15,6 +19,9 @@ For the broader plan, see:
   No Gráfico** (this document is its English technical companion).
 - `docs/chartguard-product-map.md` — *Phase 2 — Chart Lines Read-Only*
   (older numbering; see the Numbering note at the end of this file).
+- `docs/chart-lines-readonly-phase3.2-visual.md` — visual polish
+  specification (Phase 3.2): label legibility, side/quantity badge,
+  native price marker, user customization.
 - `docs/safe-core-contract.md` — Safe Core rules the implementation must
   obey.
 - `docs/panel-command-map.md` — UI ↔ command mapping.
