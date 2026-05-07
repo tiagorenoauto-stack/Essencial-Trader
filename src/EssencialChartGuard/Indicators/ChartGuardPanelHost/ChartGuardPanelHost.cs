@@ -14,6 +14,7 @@ using NinjaTrader.Gui.Chart;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.NinjaTraderBridge;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel;
+using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel.Models;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.SafeCore.Services;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.SafeCore.State;
 
@@ -74,6 +75,7 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
 
                 AccountName = AutoAccountSentinel;
                 FilterByChartInstrument = true;
+                EnableDraftPreview = false;
             }
             else if (State == State.Configure)
             {
@@ -200,6 +202,7 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
                     resolution.IsLikelySimulationOrPlayback ? ConnectionDot.Ok : ConnectionDot.Warn,
                     BuildModeLine(resolution));
                 StartRefreshTimer();
+                MaybeApplyDraftPreview();
             }
             catch (Exception ex)
             {
@@ -627,6 +630,111 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
         // make the read-only nature obvious even at a glance, followed by a connection-type
         // qualifier ("Playback" / "Sim" / "non-sim") inferred from provider/connection text.
         // Falls back to plain "Observer" when no signal is available.
+        // ============================================================================
+        // Draft preview (Phase 2.3)
+        // ============================================================================
+
+        // When EnableDraftPreview is true, the host pushes a hard-coded preview StrategyDraft
+        // into the panel right after the bridge is up. Every control on the panel remains
+        // disabled and unresponsive; this only exercises the read-only Set*Draft mutators
+        // so the visual model can be validated end-to-end. Default is false: with the
+        // checkbox left at its default the host behaves exactly like before.
+        //
+        // This method:
+        //   * never enables a control,
+        //   * never attaches an event handler,
+        //   * never creates a TradeCommandService / submitter / adapter,
+        //   * never calls EnableForControlledTest,
+        //   * never persists anything (no settings, no file IO).
+        private void MaybeApplyDraftPreview()
+        {
+            if (!EnableDraftPreview) return;
+
+            EssencialChartGuardPanel p = panel;
+            if (p == null) return;
+
+            try
+            {
+                StrategyDraft draft = BuildPreviewStrategyDraft();
+                p.SetStrategyDraft(draft);
+                if (hostLogger != null)
+                    hostLogger.UI("PanelHost draft preview applied strategy=" +
+                        (draft != null ? draft.Name : "?"));
+            }
+            catch (Exception ex)
+            {
+                if (hostLogger != null)
+                    hostLogger.UI("PanelHost draft preview error ex=" + ex.GetType().Name + ":" + ex.Message);
+            }
+        }
+
+        // Hard-coded "Preview Scalper" demo draft. Pure data only -- no NinjaTrader trading
+        // type is touched here. Mirrors the example documented for Phase 2.3 in
+        // docs/manual-test-checklist.md.
+        private static StrategyDraft BuildPreviewStrategyDraft()
+        {
+            EntryPlanDraft entry = new EntryPlanDraft
+            {
+                EntryType = "Market",
+                Quantity = 2,
+                SizingMode = "Fixed",
+                Unit = "Ticks",
+                Stop = "40",
+                Target = "80"
+            };
+
+            StopDraft stop = new StopDraft
+            {
+                Current = "40 Ticks",
+                Unit = "Ticks",
+                IsRequired = true
+            };
+
+            TakeTargetDraft t1 = new TakeTargetDraft
+            {
+                Label = "T1",
+                Quantity = 1,
+                Value = "40",
+                Unit = "Ticks"
+            };
+            TakeTargetDraft t2 = new TakeTargetDraft
+            {
+                Label = "T2",
+                Quantity = 1,
+                Value = "80",
+                Unit = "Ticks"
+            };
+
+            ProtectionDraft protection = new ProtectionDraft
+            {
+                BreakevenEnabled = true,
+                Lock1REnabled = true,
+                Lock2REnabled = false,
+                Lock3REnabled = false,
+                TrailEnabled = true,
+                Summary = "BE | Lock 1R | Trail"
+            };
+
+            RiskModeDraft risk = new RiskModeDraft
+            {
+                Mode = "Alert",
+                DailyLimit = "preview only",
+                Status = "draft preview",
+                BlockStatus = "-"
+            };
+
+            return new StrategyDraft
+            {
+                Name = "Preview Scalper",
+                Description = "Phase 2.3 hard-coded preview; not a saved strategy",
+                DefaultEntryPlan = entry,
+                DefaultStop = stop,
+                DefaultTargets = new[] { t1, t2 },
+                DefaultProtection = protection,
+                DefaultRiskMode = risk
+            };
+        }
+
         private static string BuildModeLine(AccountResolution resolution)
         {
             if (resolution.Account == null) return "Observer";
@@ -685,6 +793,15 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
         [NinjaScriptProperty]
         [Display(Name = "Filter events by chart instrument", Order = 2, GroupName = "Panel")]
         public bool FilterByChartInstrument { get; set; }
+
+        // Phase 2.3 visual validation toggle. When true, the host applies a hard-coded
+        // StrategyDraft right after attach so the read-only Set*Draft mutators can be
+        // exercised end-to-end. The panel stays fully disabled in this mode -- no control
+        // becomes operational, no command path is created, no settings are persisted.
+        // Default false: the host renders exactly the prior Phase 2 idle state.
+        [NinjaScriptProperty]
+        [Display(Name = "Enable draft preview (read-only)", Order = 3, GroupName = "Panel")]
+        public bool EnableDraftPreview { get; set; }
     }
 
     public sealed class ChartGuardPanelHostAccountNameConverter : StringConverter

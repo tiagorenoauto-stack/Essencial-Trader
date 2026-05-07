@@ -256,3 +256,99 @@ The boxes marked off below in this section reflect exactly what was observed in 
 - [ ] Calling `SetRiskModeDraft(...)` updates the disabled Risk `Mode` combobox and risk preview rows.
 - [ ] After every draft mutator call, all actionable controls remain `IsEnabled=false`, `Focusable=false`, `IsTabStop=false`; textboxes remain `IsReadOnly=true`.
 - [ ] Safety grep remains clean for new panel code: no `Account.Submit`, no `Account.CreateOrder`, no `AtmStrategyCreate`, no `EnableForControlledTest`, and no newly attached `Click` / `SelectionChanged` / `TextChanged` / mouse / context-menu / keybinding handlers.
+
+### Phase 2.3 — Draft preview validation mode
+
+This section gates a temporary, read-only path used to exercise the Phase 2
+draft mutators end-to-end without enabling any control or persisting any
+configuration. The host exposes a new `[NinjaScriptProperty]`
+**`Enable draft preview (read-only)`** (`EnableDraftPreview`), default
+**false**. When false, the host behaves exactly like the validated
+Phase 2.2 baseline. When true, the host applies a hard-coded
+`StrategyDraft` named **`Preview Scalper`** right after attach and pushes
+it into the panel via `SetStrategyDraft(...)`.
+
+The hard-coded preview draft (Phase 2.3 reference values):
+
+- Strategy name: `Preview Scalper`
+- EntryPlan: `EntryType=Market`, `Qty=2`, `Sizing=Fixed`, `Unit=Ticks`,
+  `Stop=40`, `Target=80`
+- Stop: `Current=40 Ticks`, `Unit=Ticks`, `IsRequired=true`
+- Takes: `T1 x1 @ 40 Ticks` and `T2 x1 @ 80 Ticks`
+- Protection: `BE | Lock 1R | Trail` (`Lock 2R` and `Lock 3R` off in the
+  draft summary)
+- Risk: `Mode=Alert`, `DailyLimit=preview only`, `Status=draft preview`,
+  `BlockStatus=-`
+
+Mark each item below only after manual NinjaTrader observation. Do not
+mark a box that is implied by another box; observe each scenario directly.
+
+#### Default behavior (`EnableDraftPreview=false`)
+
+- [ ] After recompiling and reloading the host on a clean chart with the
+  default `EnableDraftPreview=false`, the panel renders exactly the prior
+  Phase 2.2 idle/observed state — no `Preview Scalper` strategy appears in
+  the Strategy combobox; Entry / Stop / Takes / Protection / Risk fields
+  remain at their idle defaults; `ACTIVE POSITION` mirrors only observed
+  state.
+- [ ] No `[EssencialUI] PanelHost draft preview applied ...` line appears
+  in Output Tab 1 with the default value.
+
+#### Preview behavior (`EnableDraftPreview=true`)
+
+- [ ] Add the host indicator with `EnableDraftPreview=true`. Output Tab 1
+  shows `[EssencialUI] PanelHost draft preview applied strategy=Preview Scalper`
+  shortly after the attach lines.
+- [ ] Strategy combobox preview text reads `Preview Scalper`.
+- [ ] Entry card reflects the draft values: `Type=Market`, `Qty=2`,
+  `Sizing=Fixed`, `Unit=Ticks`, `Stop=40`, `Target=80`.
+- [ ] Takes card text becomes a non-italic summary listing both
+  `T1 x1 @ 40 Ticks` and `T2 x1 @ 80 Ticks` (in the format the panel uses
+  for `BuildTargetsSummary`).
+- [ ] Stop card `Current` row shows `40 Ticks`. Entry `Stop` field also
+  reflects `40 Ticks` (mirrored by `SetStopDraft`).
+- [ ] `ACTIVE POSITION` summary rows reflect the draft preview:
+  `Stop=40 Ticks`, `Targets` shows the same summary as the Takes card,
+  `Protection=BE | Lock 1R | Trail`.
+- [ ] Risk card preview rows show `Daily limit=preview only`,
+  `Status=draft preview`, `Block=-`. The Risk `Mode` combobox preview
+  text reads `Alert`.
+
+#### Read-only contract preserved while preview is active
+
+- [ ] All actionable controls remain visibly disabled and unresponsive:
+  Strategy combobox + `+`/`✎`/`❏`/`✕` buttons, Entry comboboxes/textboxes
+  + `BUY`/`SELL`/`PANIC` buttons, Takes buttons, Stop edit, Protection
+  buttons, Risk `Mode` combobox, header `⚙` gear.
+- [ ] No `[EssencialCommand] ...` log line is emitted by clicking,
+  hovering, or focusing any preview-populated control.
+- [ ] No `[EssencialOrder] Bridge submitted ...` line appears.
+- [ ] The NinjaTrader Orders tab shows zero orders created by ChartGuard.
+- [ ] The snapshot (Flat / Long / Short) still updates the header summary
+  and the `ACTIVE POSITION` Direction/Qty/Entry-Avg/Last fill rows from
+  observed state — the draft preview only fills the rows that observed
+  state would not provide.
+- [ ] EventBridge updates from a manual buy market via Chart Trader/SuperDOM
+  still flip the header chip and `ACTIVE POSITION` direction/qty/avg/last
+  fill exactly as in Phase 2.2; the draft preview does not block or
+  override observed updates.
+- [ ] Horizontal panel resize via the `Thumb` grip continues to work.
+- [ ] Detach via Indicators → Remove clears the panel/grip/columns and
+  emits the same `panel removed` / `unsubscribed` / `detached` lines as
+  Phase 2.2.
+- [ ] Re-add the host with `EnableDraftPreview=false`: the panel returns
+  to idle/observed-only state with no `Preview Scalper` text remaining.
+
+#### Safety grep targets (run at the end of the Phase 2.3 task)
+
+- [ ] No `Account.Submit`, `Account.CreateOrder`, `AtmStrategyCreate`, or
+  `EnableForControlledTest` introduced anywhere outside the gated
+  `NinjaTraderAccountAdapter`.
+- [ ] No `Click`, `SelectionChanged`, `TextChanged`, `MouseDown`, `MouseUp`,
+  `PreviewMouse*`, `ContextMenu`, `KeyBinding`, or `InputBindings` handler
+  attached anywhere under `src/EssencialChartGuard/AddOns/Panel/`.
+- [ ] No `using NinjaTrader.Cbi` or `using NinjaTrader.Data` introduced
+  under `src/EssencialChartGuard/AddOns/SafeCore/` or
+  `src/EssencialChartGuard/AddOns/Panel/`.
+- [ ] No persistence APIs (`File.*`, `XmlSerializer`, settings storage)
+  introduced anywhere on the host or panel for this phase.
