@@ -616,6 +616,10 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         // colors come from the theme, not the system)
         // =====================================================================
 
+        // Note: this class exposes a `Brush Border` token. Inside the style
+        // builders below we always reference the WPF Border control by its
+        // fully-qualified name `System.Windows.Controls.Border` to avoid the
+        // C# resolver picking up the brush instead of the type.
         private static Style cachedButtonStyle;
         public static Style MakeButtonStyle()
         {
@@ -625,16 +629,18 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             s.Setters.Add(new Setter(Button.OverridesDefaultStyleProperty, true));
             s.Setters.Add(new Setter(Button.FocusVisualStyleProperty, null));
 
-            FrameworkElementFactory borderFactory = new FrameworkElementFactory(typeof(Border));
+            FrameworkElementFactory borderFactory =
+                new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
             borderFactory.Name = "Bd";
-            borderFactory.SetValue(Border.BackgroundProperty,
+            borderFactory.SetValue(System.Windows.Controls.Border.BackgroundProperty,
                 new TemplateBindingExtension(Button.BackgroundProperty));
-            borderFactory.SetValue(Border.BorderBrushProperty,
+            borderFactory.SetValue(System.Windows.Controls.Border.BorderBrushProperty,
                 new TemplateBindingExtension(Button.BorderBrushProperty));
-            borderFactory.SetValue(Border.BorderThicknessProperty,
+            borderFactory.SetValue(System.Windows.Controls.Border.BorderThicknessProperty,
                 new TemplateBindingExtension(Button.BorderThicknessProperty));
-            borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(Radius));
-            borderFactory.SetValue(Border.PaddingProperty,
+            borderFactory.SetValue(System.Windows.Controls.Border.CornerRadiusProperty,
+                new CornerRadius(Radius));
+            borderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty,
                 new TemplateBindingExtension(Button.PaddingProperty));
 
             FrameworkElementFactory contentFactory =
@@ -664,11 +670,12 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 new Thickness(SpaceMd, SpaceXs, SpaceMd, SpaceXs)));
             s.Setters.Add(new Setter(ComboBoxItem.BorderThicknessProperty, new Thickness(0)));
 
-            FrameworkElementFactory borderFactory = new FrameworkElementFactory(typeof(Border));
+            FrameworkElementFactory borderFactory =
+                new FrameworkElementFactory(typeof(System.Windows.Controls.Border));
             borderFactory.Name = "Bd";
-            borderFactory.SetValue(Border.BackgroundProperty,
+            borderFactory.SetValue(System.Windows.Controls.Border.BackgroundProperty,
                 new TemplateBindingExtension(ComboBoxItem.BackgroundProperty));
-            borderFactory.SetValue(Border.PaddingProperty,
+            borderFactory.SetValue(System.Windows.Controls.Border.PaddingProperty,
                 new TemplateBindingExtension(ComboBoxItem.PaddingProperty));
 
             FrameworkElementFactory contentFactory =
@@ -685,7 +692,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 Property = ComboBoxItem.IsHighlightedProperty,
                 Value = true
             };
-            highlightTrigger.Setters.Add(new Setter(Border.BackgroundProperty, GoldDim, "Bd"));
+            highlightTrigger.Setters.Add(new Setter(
+                System.Windows.Controls.Border.BackgroundProperty, GoldDim, "Bd"));
             highlightTrigger.Setters.Add(new Setter(ComboBoxItem.ForegroundProperty, TextPrimary));
             template.Triggers.Add(highlightTrigger);
 
@@ -694,7 +702,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 Property = ComboBoxItem.IsSelectedProperty,
                 Value = true
             };
-            selectedTrigger.Setters.Add(new Setter(Border.BackgroundProperty, GoldDim, "Bd"));
+            selectedTrigger.Setters.Add(new Setter(
+                System.Windows.Controls.Border.BackgroundProperty, GoldDim, "Bd"));
             selectedTrigger.Setters.Add(new Setter(ComboBoxItem.ForegroundProperty, TextPrimary));
             template.Triggers.Add(selectedTrigger);
 
