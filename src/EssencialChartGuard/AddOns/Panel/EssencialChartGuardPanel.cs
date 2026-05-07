@@ -174,14 +174,23 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
         // Pushes the observed account snapshot into the header summary line and the
         // Active Position card. PnL fields stay "-" until a real PnL source is wired.
+        //
+        // Flat-position rule: when there is no open position (Flat with zero quantity, or
+        // Unknown), the "average / entry" reading must not display the previous fill price
+        // -- there is no average to report. The "Last fill" row still shows the last
+        // observed execution price when one exists, because it is informational about the
+        // most recent execution rather than about the (no longer open) position.
         public void SetObservedState(ObservedAccountSnapshotDto dto)
         {
             string positionText = dto.Position.ToString();
             Brush positionBrush = ResolvePositionBrush(dto.Position);
             string qtyText = dto.AbsoluteQuantity.ToString(CultureInfo.InvariantCulture);
-            string priceText = dto.LastPrice.HasValue
+            string lastPriceText = dto.LastPrice.HasValue
                 ? dto.LastPrice.Value.ToString("0.#####", CultureInfo.InvariantCulture)
                 : "-";
+            bool hasOpenPosition = dto.AbsoluteQuantity > 0
+                && (dto.Position == ObservedPosition.Long || dto.Position == ObservedPosition.Short);
+            string avgPriceText = hasOpenPosition ? lastPriceText : "-";
             string workingText = dto.WorkingOrdersCount.ToString(CultureInfo.InvariantCulture);
 
             RunOnUi(delegate
@@ -199,7 +208,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                     summaryPositionText.Foreground = positionBrush;
                 }
                 if (summaryQtyText != null) summaryQtyText.Text = "qty " + qtyText;
-                if (summaryAvgText != null) summaryAvgText.Text = "avg " + priceText;
+                if (summaryAvgText != null) summaryAvgText.Text = "avg " + avgPriceText;
                 if (summaryWorkingOrdersText != null) summaryWorkingOrdersText.Text = "wo " + workingText;
 
                 if (activePosDirectionValue != null)
@@ -208,8 +217,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                     activePosDirectionValue.Foreground = positionBrush;
                 }
                 if (activePosQtyValue != null) activePosQtyValue.Text = qtyText;
-                if (activePosEntryValue != null) activePosEntryValue.Text = priceText;
-                if (activePosLastFillValue != null) activePosLastFillValue.Text = priceText;
+                if (activePosEntryValue != null) activePosEntryValue.Text = avgPriceText;
+                if (activePosLastFillValue != null) activePosLastFillValue.Text = lastPriceText;
                 if (activePosWorkingOrdersValue != null) activePosWorkingOrdersValue.Text = workingText;
             });
         }
