@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using NinjaTrader.Gui;
 using NinjaTrader.Gui.Tools;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel.ChartLines;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.SafeCore.Services;
