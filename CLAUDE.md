@@ -57,6 +57,10 @@ Before implementing a feature:
 3. Implement the smallest route that satisfies the behavior.
 4. Verify in NinjaTrader replay before expanding the feature.
 
+The day-to-day operational standard — start/end-of-task checks, Definition
+of Done, commit pattern, sync rules, and safety greps — lives in
+`docs/project-working-rules.md` and applies to every change in this repo.
+
 ## Project Layout
 
 ```text
