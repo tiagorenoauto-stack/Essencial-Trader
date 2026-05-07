@@ -168,69 +168,86 @@ This section gates the **Phase 1/2** read-only operational layout served by **`E
 
 This phase is read-only by contract: the panel renders a final-shape area structure (Header, Strategy, Entry, Active Position, Takes, Stop, Protection, Risk, Session, Observation) but every actionable control inside it stays disabled. Phase 2 adds model/draft mutators only; the controls remain preview/disabled. See `docs/chartguard-product-map.md` Phase 1/2 for the full goal.
 
+### Phase 2.2 validation note — 2026-05-07
+
+Manually validated in NinjaTrader on a clean chart by the user. Confirmed observations:
+
+- NinjaScript compile succeeded with **0 errors**; the host appears in the Indicators dialog.
+- Panel host attached on a clean chart with `Account=<Auto>` and `Filter events by chart instrument=true`.
+- Layout matches the Phase 1/2 final-shape order: HEADER, STRATEGY, ENTRY, ACTIVE POSITION, TAKES, STOP, PROTECTION, RISK, SESSION, OBSERVATION.
+- All actionable controls in Strategy, Entry (Type / Qty / Sizing / Unit / Stop / Target / BUY / SELL / PANIC), Takes, Stop, Protection, Risk Mode, and the header gear remain visibly disabled and unresponsive.
+- Snapshot row showed `Flat` correctly when attached against a flat account, with the header summary populated (no `?`).
+- EventBridge updated the header summary and `ACTIVE POSITION` rows on a manual buy market via Chart Trader/SuperDOM (`Long 1`), then back to `Flat` on the closing manual sell.
+- During the retest a duplicate panel was observed; root cause was **two host instances on the same chart** (operator error). Removing the duplicate restored the single-panel behavior. No code change required.
+- Horizontal resize via the `Thumb` grip continued to work; chart remained usable.
+- No ChartGuard-issued order was observed — no `[EssencialOrder] Bridge submitted ...` and no `[EssencialCommand] DryRun SubmitProtectedEntry ...` lines.
+- Detach (Indicators → Remove) cleared the panel, the resize grip, and the added Grid columns, and the matching `PanelHost panel removed` / `EventBridge unsubscribed` / `PanelHost detached` lines were emitted. Subsequent manual orders produced no further `EventBridge` lines.
+
+The boxes marked off below in this section reflect exactly what was observed in this Phase 2.2 session. Items requiring scenarios not exercised in this session — long/short snapshot at attach, manual sell short, working limit order, recompile-with-instance-on-chart, and draft-mutator calls — remain unchecked and must be validated separately when their scenario is run.
+
 ### Compilation and discovery
 
-- [ ] The full ChartGuard tree (SafeCore + NinjaTraderBridge + Panel + Indicators) compiles in the NinjaScript Editor with **0 errors**.
-- [ ] The Indicators dialog lists **`Essencial ChartGuard - Panel Host`** under the **EssencialChartGuard** group (namespace `NinjaTrader.NinjaScript.Indicators.EssencialChartGuard`).
+- [x] The full ChartGuard tree (SafeCore + NinjaTraderBridge + Panel + Indicators) compiles in the NinjaScript Editor with **0 errors**. *(Phase 2.2 — 2026-05-07)*
+- [x] The Indicators dialog lists **`Essencial ChartGuard - Panel Host`** under the **EssencialChartGuard** group (namespace `NinjaTrader.NinjaScript.Indicators.EssencialChartGuard`). *(Phase 2.2 — 2026-05-07)*
 
 ### Panel injection / removal
 
-- [ ] Add the host indicator to a clean chart with `Account=<Auto>` and `Filter events by chart instrument=true`. The right-side panel appears, full chart height.
-- [ ] Header shows: brand `Essencial ChartGuard`, a status dot with a mode line (`Observer`, `Observer / Playback`, `Observer / Sim`, or `Observer / non-sim`), a small disabled gear (`⚙`) on the right of the mode, an `<account> / <instrument>` line, and a one-line summary `<position> · qty <n> · avg <price> · wo <n>`.
-- [ ] Below the header, in this order: `STRATEGY`, `ENTRY`, `ACTIVE POSITION`, `TAKES`, `STOP`, `PROTECTION`, `RISK`, `SESSION`, `OBSERVATION`.
+- [x] Add the host indicator to a clean chart with `Account=<Auto>` and `Filter events by chart instrument=true`. The right-side panel appears, full chart height. *(Phase 2.2 — 2026-05-07)*
+- [x] Header shows: brand `Essencial ChartGuard`, a status dot with a mode line (`Observer`, `Observer / Playback`, `Observer / Sim`, or `Observer / non-sim`), a small disabled gear (`⚙`) on the right of the mode, an `<account> / <instrument>` line, and a one-line summary `<position> · qty <n> · avg <price> · wo <n>`. *(Phase 2.2 — 2026-05-07)*
+- [x] Below the header, in this order: `STRATEGY`, `ENTRY`, `ACTIVE POSITION`, `TAKES`, `STOP`, `PROTECTION`, `RISK`, `SESSION`, `OBSERVATION`. *(Phase 2.2 — 2026-05-07)*
 - [ ] Header position chip is colored: green for Long, red for Short, neutral white for Flat, muted gray for Unknown.
-- [ ] `ACTIVE POSITION` shows `Direction`, `Qty`, `Entry/Avg`, `Last fill`, `PnL ticks`, `PnL points`, `PnL %`, `PnL $`, `Working orders`, `Stop`, `Targets`, `Protection`. Direction/Qty/Entry-Avg/Last fill/Working orders mirror the header summary; PnL/Stop/Targets/Protection rows display `-` until a real source is wired.
-- [ ] `OBSERVATION` card lists `Snapshot` and `Event bridge` rows, each with its own status dot.
-- [ ] The vertical resize grip on the left edge of the panel resizes the panel horizontally. Initial width ~370px; the panel does not shrink below ~280px and does not grow past ~640px.
-- [ ] Vertical resize is not exposed; the panel always occupies the full chart height.
+- [x] `ACTIVE POSITION` shows `Direction`, `Qty`, `Entry/Avg`, `Last fill`, `PnL ticks`, `PnL points`, `PnL %`, `PnL $`, `Working orders`, `Stop`, `Targets`, `Protection`. Direction/Qty/Entry-Avg/Last fill/Working orders mirror the header summary; PnL/Stop/Targets/Protection rows display `-` until a real source is wired. *(Phase 2.2 — 2026-05-07)*
+- [x] `OBSERVATION` card lists `Snapshot` and `Event bridge` rows, each with its own status dot. *(Phase 2.2 — 2026-05-07)*
+- [x] The vertical resize grip on the left edge of the panel resizes the panel horizontally. Initial width ~370px; the panel does not shrink below ~280px and does not grow past ~640px. *(Phase 2.2 — 2026-05-07)*
+- [x] Vertical resize is not exposed; the panel always occupies the full chart height. *(Phase 2.2 — 2026-05-07)*
 - [ ] At `State.DataLoaded`, the log shows `[EssencialUI] PanelHost panel injected initialWidth=370px minWidth=280px`.
 - [ ] No native NinjaTrader Chart Trader / drawing-tool / context-menu behavior is blocked or replaced. Right-clicking the chart still opens the standard NinjaTrader context menu.
 
 ### Snapshot states
 
-- [ ] Attach the host while flat on the chart instrument: the `OBSERVATION` snapshot row shows a green/Ok dot with text like `applied flat qty=0`, the header summary chip reads `Flat · qty 0 · avg - · wo 0`, and the `<account> / <instrument>` line is fully populated (no `?`).
+- [x] Attach the host while flat on the chart instrument: the `OBSERVATION` snapshot row shows a green/Ok dot with text like `applied flat qty=0`, the header summary chip reads `Flat · qty 0 · avg - · wo 0`, and the `<account> / <instrument>` line is fully populated (no `?`). *(Phase 2.2 — 2026-05-07)*
 - [ ] Attach the host while already **Long 1** on the chart instrument: snapshot row shows `applied long qty=1`; header chip reads `Long · qty 1 · avg <price> · wo 0` (green Long); `ACTIVE POSITION → Direction` is `Long` (green), `Qty=1`, `Entry/Avg=<price>`, `Last fill=<price>`, `Working orders=0`.
 - [ ] Attach the host while already **Short 1** on the chart instrument: snapshot row shows `applied short qty=1`; header chip and `ACTIVE POSITION` rows mirror it (`Short` red).
 
 ### Live updates from manual orders
 
-- [ ] With the host attached, place a manual buy market via Chart Trader/SuperDOM (1 contract): within ~500ms the header chip flips to `Long · qty 1 · avg <fill price> · wo 0` and `ACTIVE POSITION → Entry/Avg` and `Last fill` both show the same fill price. Output Tab 1 shows the matching `[EssencialOrder] EventBridge OrderUpdate`/`ExecutionUpdate` and `ObservedState ...` lines.
-- [ ] Manual sell that closes the long: header chip flips to `Flat · qty 0 · avg - · wo 0` and `ACTIVE POSITION → Direction` becomes `Flat`.
+- [x] With the host attached, place a manual buy market via Chart Trader/SuperDOM (1 contract): within ~500ms the header chip flips to `Long · qty 1 · avg <fill price> · wo 0` and `ACTIVE POSITION → Entry/Avg` and `Last fill` both show the same fill price. Output Tab 1 shows the matching `[EssencialOrder] EventBridge OrderUpdate`/`ExecutionUpdate` and `ObservedState ...` lines. *(Phase 2.2 — 2026-05-07)*
+- [x] Manual sell that closes the long: header chip flips to `Flat · qty 0 · avg - · wo 0` and `ACTIVE POSITION → Direction` becomes `Flat`. *(Phase 2.2 — 2026-05-07)*
 - [ ] Manual sell short: header chip flips to `Short · qty 1 · avg <price> · wo 0` (red); `ACTIVE POSITION → Direction` is `Short` (red).
 - [ ] Place a working manual limit order (no fill): the `wo` count in the header summary and `ACTIVE POSITION → Working orders` both increment by 1; position chip and qty are unchanged. Cancel it: both decrement by 1.
 
 ### Disabled placeholders (Phase 1 contract)
 
-- [ ] `STRATEGY` shows a combobox previewing the current strategy name and four small action buttons (`+`, `✎`, `❏`, `✕`). All five controls are visibly disabled and unresponsive to clicks. Each control carries a tooltip explaining its future role.
-- [ ] `ENTRY` shows fields `Type` (combobox, default `Market`), `Qty` (text, default `1`), `Sizing` (combobox, default `Fixed`), `Unit` (combobox, default `Ticks`), `Stop` (text), `Target` (text). All are disabled. Below them, `BUY` (green), `SELL` (red), and `PANIC` (red) buttons are visible but disabled and unresponsive. Each control has a tooltip describing its future behavior and the `(preview / disabled)` qualifier.
-- [ ] `TAKES` shows an italic `(no targets defined)` line and three disabled buttons `+ Add target`, `Edit`, `Remove`, each with a tooltip.
-- [ ] `STOP` shows a `Current` row (value `-`) and a single disabled `Edit stop` button with a tooltip.
-- [ ] `PROTECTION` shows disabled `BE`, `Lock 1R`, `Lock 2R`, `Lock 3R`, `Trail` buttons. Each has a tooltip explaining its future role.
-- [ ] `RISK` shows `Daily limit`, `Status`, `Block` rows plus a disabled `Mode` combobox (default `Alert`). Tooltips on label/value/select describe the future Alert/Block/Off behavior.
-- [ ] `SESSION` shows `Trades`, `PnL`, `Time` rows. With no session source wired yet, values default to `-` / `-` / `no session data yet`.
-- [ ] The header gear `⚙` is visible but disabled. Clicking it does nothing and opens no window. No persistence happens during the session.
-- [ ] Every disabled section has a small italic footnote making it clear the section is read-only / not wired in this build.
-- [ ] Hovering any disabled button, combobox, textbox or label shows a tooltip describing the control's purpose and that it is in preview / read-only.
+- [x] `STRATEGY` shows a combobox previewing the current strategy name and four small action buttons (`+`, `✎`, `❏`, `✕`). All five controls are visibly disabled and unresponsive to clicks. Each control carries a tooltip explaining its future role. *(Phase 2.2 — 2026-05-07)*
+- [x] `ENTRY` shows fields `Type` (combobox, default `Market`), `Qty` (text, default `1`), `Sizing` (combobox, default `Fixed`), `Unit` (combobox, default `Ticks`), `Stop` (text), `Target` (text). All are disabled. Below them, `BUY` (green), `SELL` (red), and `PANIC` (red) buttons are visible but disabled and unresponsive. Each control has a tooltip describing its future behavior and the `(preview / disabled)` qualifier. *(Phase 2.2 — 2026-05-07)*
+- [x] `TAKES` shows an italic `(no targets defined)` line and three disabled buttons `+ Add target`, `Edit`, `Remove`, each with a tooltip. *(Phase 2.2 — 2026-05-07)*
+- [x] `STOP` shows a `Current` row (value `-`) and a single disabled `Edit stop` button with a tooltip. *(Phase 2.2 — 2026-05-07)*
+- [x] `PROTECTION` shows disabled `BE`, `Lock 1R`, `Lock 2R`, `Lock 3R`, `Trail` buttons. Each has a tooltip explaining its future role. *(Phase 2.2 — 2026-05-07)*
+- [x] `RISK` shows `Daily limit`, `Status`, `Block` rows plus a disabled `Mode` combobox (default `Alert`). Tooltips on label/value/select describe the future Alert/Block/Off behavior. *(Phase 2.2 — 2026-05-07)*
+- [x] `SESSION` shows `Trades`, `PnL`, `Time` rows. With no session source wired yet, values default to `-` / `-` / `no session data yet`. *(Phase 2.2 — 2026-05-07)*
+- [x] The header gear `⚙` is visible but disabled. Clicking it does nothing and opens no window. No persistence happens during the session. *(Phase 2.2 — 2026-05-07)*
+- [x] Every disabled section has a small italic footnote making it clear the section is read-only / not wired in this build. *(Phase 2.2 — 2026-05-07)*
+- [x] Hovering any disabled button, combobox, textbox or label shows a tooltip describing the control's purpose and that it is in preview / read-only. *(Phase 2.2 — 2026-05-07)*
 
 ### Detach / recompile / restart
 
-- [ ] Remove the host indicator from the Indicators dialog. The panel, resize grip, and added Grid columns disappear. The chart returns to its original layout (no leftover thin column on the right).
+- [x] Remove the host indicator from the Indicators dialog. The panel, resize grip, and added Grid columns disappear. The chart returns to its original layout (no leftover thin column on the right). *(Phase 2.2 — 2026-05-07)*
 - [ ] After removal, log shows `[EssencialUI] PanelHost panel removed`, `[EssencialOrder] EventBridge unsubscribed account=...`, and `[EssencialUI] PanelHost detached account=...`. New manual orders after this produce **no** further `EventBridge` or `PanelHost` lines.
-- [ ] Recompile NinjaScript while a host instance is on the chart, then re-add the indicator. Exactly one panel is visible on the chart (no duplicate panel, no duplicate splitter, no extra Grid column).
+- [ ] Recompile NinjaScript while a host instance is on the chart, then re-add the indicator. Exactly one panel is visible on the chart (no duplicate panel, no duplicate splitter, no extra Grid column). *(Note: a duplicate-panel observation in 2026-05-07 was traced to two host instances added on the same chart — operator error, not a recompile/duplicate-handler regression. This recompile-while-attached scenario itself was not exercised in 2026-05-07 and remains pending.)*
 - [ ] Restart NinjaTrader after a host session and confirm no stale handler/panel from the previous instance remains.
 
 ### Safety (no orders, Phase 1)
 
-- [ ] During the entire panel session: no `[EssencialOrder] Bridge submitted ...` line appears.
-- [ ] During the entire panel session: no `[EssencialCommand] DryRun SubmitProtectedEntry ...` line appears.
-- [ ] The NinjaTrader Orders tab shows only orders the operator created manually — never any order created by ChartGuard.
-- [ ] All actionable controls in the panel — strategy combobox + `+`/`✎`/`❏`/`✕` buttons, entry `Type`/`Sizing`/`Unit` comboboxes, entry `Qty`/`Stop`/`Target` textboxes, `BUY`/`SELL`/`PANIC` buttons, `+ Add target`/`Edit`/`Remove` takes buttons, `Edit stop` button, `BE`/`Lock 1R`/`Lock 2R`/`Lock 3R`/`Trail` protection buttons, risk `Mode` combobox, header `⚙` gear button — are visible **but disabled**. None of them carries a `Click`, `SelectionChanged`, `TextChanged`, `MouseDown`, `MouseUp`, `PreviewMouse*`, `ContextMenu`, or `KeyBinding` handler in code; none changes any ChartGuard or NinjaTrader state; none prints any `[EssencialCommand] ...` log line.
-- [ ] No keyboard shortcut on the chart or panel triggers any ChartGuard order action. The host does not register any global hotkey.
-- [ ] No chart click is intercepted by the host. Clicks/drags on the chart area continue to behave as native NinjaTrader expects.
+- [x] During the entire panel session: no `[EssencialOrder] Bridge submitted ...` line appears. *(Phase 2.2 — 2026-05-07)*
+- [x] During the entire panel session: no `[EssencialCommand] DryRun SubmitProtectedEntry ...` line appears. *(Phase 2.2 — 2026-05-07)*
+- [x] The NinjaTrader Orders tab shows only orders the operator created manually — never any order created by ChartGuard. *(Phase 2.2 — 2026-05-07)*
+- [x] All actionable controls in the panel — strategy combobox + `+`/`✎`/`❏`/`✕` buttons, entry `Type`/`Sizing`/`Unit` comboboxes, entry `Qty`/`Stop`/`Target` textboxes, `BUY`/`SELL`/`PANIC` buttons, `+ Add target`/`Edit`/`Remove` takes buttons, `Edit stop` button, `BE`/`Lock 1R`/`Lock 2R`/`Lock 3R`/`Trail` protection buttons, risk `Mode` combobox, header `⚙` gear button — are visible **but disabled**. None of them carries a `Click`, `SelectionChanged`, `TextChanged`, `MouseDown`, `MouseUp`, `PreviewMouse*`, `ContextMenu`, or `KeyBinding` handler in code; none changes any ChartGuard or NinjaTrader state; none prints any `[EssencialCommand] ...` log line. *(Phase 2.2 — 2026-05-07)*
+- [x] No keyboard shortcut on the chart or panel triggers any ChartGuard order action. The host does not register any global hotkey. *(Phase 2.2 — 2026-05-07)*
+- [x] No chart click is intercepted by the host. Clicks/drags on the chart area continue to behave as native NinjaTrader expects. *(Phase 2.2 — 2026-05-07)*
 
 ### Draft model preview (Phase 2 contract)
 
-- [ ] Files under `AddOns/Panel/Models/` compile and contain only pure preview/configuration data. They do not reference NinjaTrader account/order types and do not create services.
+- [x] Files under `AddOns/Panel/Models/` compile and contain only pure preview/configuration data. They do not reference NinjaTrader account/order types and do not create services. *(Phase 2.2 — 2026-05-07: NinjaScript compile OK, and a repo-wide grep at validation time confirmed no `using NinjaTrader.Cbi`/`NinjaTrader.Data`, no `Account.Submit`/`Account.CreateOrder`/`AtmStrategyCreate`/`EnableForControlledTest`, and no event-handler attachments under `AddOns/Panel/`.)*
 - [ ] Calling `SetStrategyDraft(...)` updates the disabled Strategy combobox text and may propagate default Entry/Stop/Takes/Protection/Risk previews; it does not enable any control.
 - [ ] Calling `SetEntryPlanDraft(...)` updates only disabled Entry fields (`Type`, `Qty`, `Sizing`, `Unit`, `Stop`, `Target`).
 - [ ] Calling `SetTakeTargetsDraft(...)` updates the Takes text summary and the read-only `ACTIVE POSITION -> Targets` summary. Empty/null targets return to `(no targets defined)` / `-`.
