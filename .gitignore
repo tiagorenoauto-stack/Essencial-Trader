@@ -1,0 +1,22 @@
+# NinjaTrader / build artifacts
+bin/
+obj/
+*.dll
+*.pdb
+*.cache
+
+# User/local files
+*.user
+*.suo
+*.tmp
+*.log
+
+# OS/editor noise
+.vs/
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+
+# Keep source controlled by this repo, not generated NinjaTrader output.
+NinjaTrader.Custom.dll
