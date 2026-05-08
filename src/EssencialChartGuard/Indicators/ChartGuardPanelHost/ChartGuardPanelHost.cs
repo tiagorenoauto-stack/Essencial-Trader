@@ -120,9 +120,11 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
         // Mirror the indicator's "Visible" checkbox onto our injected side
         // panel. The panel is a Grid column on the ChartControl, not part of
         // the indicator's plot, so NinjaTrader's IsVisible does not hide it
-        // automatically — we apply it here. OnRender is invoked on the chart's
-        // dispatcher thread, so it is safe to mutate WPF directly.
-        protected override void OnRender(ChartControl chartControl, ChartScale chartScale)
+        // automatically — and OnRender is not invoked on a plotless overlay
+        // host like this one. We poll IsVisible from the existing 500ms
+        // refresh timer (which runs on the chart dispatcher) and apply only
+        // when the flag actually flips.
+        private void SyncPanelVisibilityFromIndicatorFlag()
         {
             try
             {
@@ -138,7 +140,7 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
             catch (Exception ex)
             {
                 if (hostLogger != null)
-                    hostLogger.UI("PanelHost OnRender visibility error ex=" + ex.GetType().Name + ":" + ex.Message);
+                    hostLogger.UI("PanelHost visibility sync error ex=" + ex.GetType().Name + ":" + ex.Message);
             }
         }
 
@@ -565,6 +567,7 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
 
         private void OnRefreshTick(object sender, EventArgs e)
         {
+            SyncPanelVisibilityFromIndicatorFlag();
             SafeUpdatePanelFromState();
         }
 
