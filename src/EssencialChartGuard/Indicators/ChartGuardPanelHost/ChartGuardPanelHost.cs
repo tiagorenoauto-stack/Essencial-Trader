@@ -146,23 +146,68 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
 
         private void ApplyPanelVisibility(bool visible)
         {
+            if (hostGrid == null) return;
+
             if (visible)
             {
-                if (panel != null) panel.Visibility = Visibility.Visible;
-                if (resizeThumb != null) resizeThumb.Visibility = Visibility.Visible;
-                if (addedColumn != null && savedPanelWidth.Value > 0)
-                    addedColumn.Width = savedPanelWidth;
-                if (splitterColumn != null && savedSplitterWidth.Value > 0)
-                    splitterColumn.Width = savedSplitterWidth;
+                // Re-add splitter + panel columns (and the splitter / panel
+                // themselves) at the right end of the host grid. We always
+                // re-create the ColumnDefinitions because removing them above
+                // detached them from the grid.
+                splitterColumn = new ColumnDefinition
+                {
+                    Width = savedSplitterWidth.Value > 0
+                        ? savedSplitterWidth
+                        : new GridLength(EssencialChartGuardTheme.SplitterWidth, GridUnitType.Pixel)
+                };
+                hostGrid.ColumnDefinitions.Add(splitterColumn);
+                int splitterColumnIndex = hostGrid.ColumnDefinitions.Count - 1;
+
+                addedColumn = new ColumnDefinition
+                {
+                    Width = savedPanelWidth.Value > 0
+                        ? savedPanelWidth
+                        : new GridLength(EssencialChartGuardTheme.PanelInitialWidth, GridUnitType.Pixel),
+                    MinWidth = EssencialChartGuardTheme.PanelMinWidth,
+                    MaxWidth = EssencialChartGuardTheme.PanelMaxWidth
+                };
+                hostGrid.ColumnDefinitions.Add(addedColumn);
+                int panelColumnIndex = hostGrid.ColumnDefinitions.Count - 1;
+
+                if (resizeThumb != null && !hostGrid.Children.Contains(resizeThumb))
+                {
+                    Grid.SetColumn(resizeThumb, splitterColumnIndex);
+                    Grid.SetRow(resizeThumb, 0);
+                    if (hostGrid.RowDefinitions.Count > 1)
+                        Grid.SetRowSpan(resizeThumb, hostGrid.RowDefinitions.Count);
+                    hostGrid.Children.Add(resizeThumb);
+                }
+                if (panel != null && !hostGrid.Children.Contains(panel))
+                {
+                    Grid.SetColumn(panel, panelColumnIndex);
+                    Grid.SetRow(panel, 0);
+                    if (hostGrid.RowDefinitions.Count > 1)
+                        Grid.SetRowSpan(panel, hostGrid.RowDefinitions.Count);
+                    hostGrid.Children.Add(panel);
+                }
             }
             else
             {
                 if (addedColumn != null) savedPanelWidth = addedColumn.Width;
                 if (splitterColumn != null) savedSplitterWidth = splitterColumn.Width;
-                if (panel != null) panel.Visibility = Visibility.Collapsed;
-                if (resizeThumb != null) resizeThumb.Visibility = Visibility.Collapsed;
-                if (addedColumn != null) addedColumn.Width = new GridLength(0, GridUnitType.Pixel);
-                if (splitterColumn != null) splitterColumn.Width = new GridLength(0, GridUnitType.Pixel);
+
+                if (panel != null && hostGrid.Children.Contains(panel))
+                    hostGrid.Children.Remove(panel);
+                if (resizeThumb != null && hostGrid.Children.Contains(resizeThumb))
+                    hostGrid.Children.Remove(resizeThumb);
+
+                if (addedColumn != null && hostGrid.ColumnDefinitions.Contains(addedColumn))
+                    hostGrid.ColumnDefinitions.Remove(addedColumn);
+                if (splitterColumn != null && hostGrid.ColumnDefinitions.Contains(splitterColumn))
+                    hostGrid.ColumnDefinitions.Remove(splitterColumn);
+
+                addedColumn = null;
+                splitterColumn = null;
             }
         }
 
