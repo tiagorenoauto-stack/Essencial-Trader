@@ -897,18 +897,18 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             sp.Children.Add(activePosPnL);
 
             // Detailed observed-state rows (mirror what the host already pushes)
-            sp.Children.Add(BuildLabelValueRow("Direction", out activePosDirectionValue));
-            sp.Children.Add(BuildLabelValueRow("Qty", out activePosQtyValue));
-            sp.Children.Add(BuildLabelValueRow("Entry / Avg", out activePosEntryValue));
-            sp.Children.Add(BuildLabelValueRow("Last fill", out activePosLastFillValue));
+            sp.Children.Add(BuildLabelValueRow("Direção", out activePosDirectionValue));
+            sp.Children.Add(BuildLabelValueRow("Quantidade", out activePosQtyValue));
+            sp.Children.Add(BuildLabelValueRow("Preço médio", out activePosEntryValue));
+            sp.Children.Add(BuildLabelValueRow("Última execução", out activePosLastFillValue));
             sp.Children.Add(BuildLabelValueRow("PnL ticks", out activePosPnLTicksValue));
             sp.Children.Add(BuildLabelValueRow("PnL points", out activePosPnLPointsValue));
             sp.Children.Add(BuildLabelValueRow("PnL %", out activePosPnLPercentValue));
             sp.Children.Add(BuildLabelValueRow("PnL $", out activePosPnLCashValue));
-            sp.Children.Add(BuildLabelValueRow("Working orders", out activePosWorkingOrdersValue));
+            sp.Children.Add(BuildLabelValueRow("Ordens pendentes", out activePosWorkingOrdersValue));
             sp.Children.Add(BuildLabelValueRow("Stop", out activePosStopValue));
-            sp.Children.Add(BuildLabelValueRow("Targets", out activePosTargetsValue));
-            sp.Children.Add(BuildLabelValueRow("Protection", out activePosProtectionValue));
+            sp.Children.Add(BuildLabelValueRow("Alvos", out activePosTargetsValue));
+            sp.Children.Add(BuildLabelValueRow("Proteção", out activePosProtectionValue));
 
             // Takes inline chips row
             Grid takesInline = BuildInlineChipsRow(
@@ -1069,7 +1069,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             g.Children.Add(metaBar);
 
             // Three labelled rows for the host's SetRiskMetrics
-            FrameworkElement r4 = BuildLabelValueRow("Daily limit", out riskDailyLimitValue);
+            FrameworkElement r4 = BuildLabelValueRow("Limite diário", out riskDailyLimitValue);
             Grid.SetRow(r4, 4); Grid.SetColumnSpan(r4, 3);
             g.Children.Add(r4);
             FrameworkElement r5 = BuildLabelValueRow("Status", out riskStatusValue);
@@ -1091,7 +1091,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
             sp.Children.Add(BuildLabelValueRow("Trades", out sessionTradesValue));
             sp.Children.Add(BuildLabelValueRow("PnL", out sessionPnLValue));
-            sp.Children.Add(BuildLabelValueRow("Time", out sessionTimeValue));
+            sp.Children.Add(BuildLabelValueRow("Tempo", out sessionTimeValue));
             sessionCard = EssencialChartGuardTheme.MakeSection("Sessão", sp,
                 "Resumo da sessão atual (preview).");
             return sessionCard;
@@ -1100,10 +1100,10 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         private Border BuildObservationCard()
         {
             StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
-            sp.Children.Add(BuildDotRow("Snapshot", out snapshotDot, out snapshotText));
-            sp.Children.Add(BuildDotRow("Event bridge", out bridgeDot, out bridgeText));
-            observationCard = EssencialChartGuardTheme.MakeSection("Observation", sp,
-                "Estado do snapshot e do event bridge (read-only).");
+            sp.Children.Add(BuildDotRow("Posição inicial", out snapshotDot, out snapshotText));
+            sp.Children.Add(BuildDotRow("Eventos", out bridgeDot, out bridgeText));
+            observationCard = EssencialChartGuardTheme.MakeSection("Observação", sp,
+                "Estado da leitura inicial de posição e dos eventos (read-only).");
             return observationCard;
         }
 
