@@ -522,6 +522,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             content.Children.Add(EssencialChartGuardTheme.MakeBareCard(topGroup));
 
             content.Children.Add(BuildEntrySection());
+            content.Children.Add(BuildProtectionSection());
             content.Children.Add(BuildActivePositionSection());
             content.Children.Add(BuildRiskSection());
             content.Children.Add(BuildSessionSection());
@@ -866,43 +867,9 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             return entryCard;
         }
 
-        private Border BuildActivePositionSection()
+        private Border BuildProtectionSection()
         {
             StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
-
-            activePosHeader = new TextBlock
-            {
-                Text = "(sem posição ativa)",
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeBody,
-                Foreground = EssencialChartGuardTheme.TextMuted,
-                Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceXs)
-            };
-            sp.Children.Add(activePosHeader);
-
-            activePosPnL = new TextBlock
-            {
-                Text = " ",
-                FontFamily = EssencialChartGuardTheme.FontMono,
-                FontSize = EssencialChartGuardTheme.FontSizeValue,
-                Foreground = EssencialChartGuardTheme.TextSecondary,
-                Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceSm)
-            };
-            sp.Children.Add(activePosPnL);
-
-            // Detailed observed-state rows (mirror what the host already pushes)
-            sp.Children.Add(BuildLabelValueRow("Direção", out activePosDirectionValue));
-            sp.Children.Add(BuildLabelValueRow("Quantidade", out activePosQtyValue));
-            sp.Children.Add(BuildLabelValueRow("Preço médio", out activePosEntryValue));
-            sp.Children.Add(BuildLabelValueRow("Última execução", out activePosLastFillValue));
-            sp.Children.Add(BuildLabelValueRow("PnL ticks", out activePosPnLTicksValue));
-            sp.Children.Add(BuildLabelValueRow("PnL points", out activePosPnLPointsValue));
-            sp.Children.Add(BuildLabelValueRow("PnL %", out activePosPnLPercentValue));
-            sp.Children.Add(BuildLabelValueRow("PnL $", out activePosPnLCashValue));
-            sp.Children.Add(BuildLabelValueRow("Ordens pendentes", out activePosWorkingOrdersValue));
-            sp.Children.Add(BuildLabelValueRow("Stop", out activePosStopValue));
-            sp.Children.Add(BuildLabelValueRow("Takes", out activePosTargetsValue));
-            sp.Children.Add(BuildLabelValueRow("Proteção", out activePosProtectionValue));
 
             // Takes inline chips row
             Grid takesInline = BuildInlineChipsRow(
@@ -994,13 +961,54 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             sp.Children.Add(lockRow);
 
-            // SetTakeTargetsDraft writes into takesEmptyHint; create a detached
-            // placeholder so the mutator stays NRE-safe even though the takes
-            // card was folded into the active-position card.
+            // SetTakeTargetsDraft writes into takesEmptyHint; keep a detached
+            // placeholder so the mutator stays NRE-safe.
             takesEmptyHint = new TextBlock();
 
+            return EssencialChartGuardTheme.MakeSection("Proteção", sp,
+                "Takes, stop, trail e travamentos de R. Tudo preview / disabled nesta versão.");
+        }
+
+        private Border BuildActivePositionSection()
+        {
+            StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
+
+            activePosHeader = new TextBlock
+            {
+                Text = "(sem posição ativa)",
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = EssencialChartGuardTheme.FontSizeBody,
+                Foreground = EssencialChartGuardTheme.TextMuted,
+                Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceXs)
+            };
+            sp.Children.Add(activePosHeader);
+
+            activePosPnL = new TextBlock
+            {
+                Text = " ",
+                FontFamily = EssencialChartGuardTheme.FontMono,
+                FontSize = EssencialChartGuardTheme.FontSizeValue,
+                Foreground = EssencialChartGuardTheme.TextSecondary,
+                Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceSm)
+            };
+            sp.Children.Add(activePosPnL);
+
+            // Detailed observed-state rows (mirror what the host already pushes)
+            sp.Children.Add(BuildLabelValueRow("Direção", out activePosDirectionValue));
+            sp.Children.Add(BuildLabelValueRow("Quantidade", out activePosQtyValue));
+            sp.Children.Add(BuildLabelValueRow("Preço médio", out activePosEntryValue));
+            sp.Children.Add(BuildLabelValueRow("Última execução", out activePosLastFillValue));
+            sp.Children.Add(BuildLabelValueRow("PnL ticks", out activePosPnLTicksValue));
+            sp.Children.Add(BuildLabelValueRow("PnL points", out activePosPnLPointsValue));
+            sp.Children.Add(BuildLabelValueRow("PnL %", out activePosPnLPercentValue));
+            sp.Children.Add(BuildLabelValueRow("PnL $", out activePosPnLCashValue));
+            sp.Children.Add(BuildLabelValueRow("Ordens pendentes", out activePosWorkingOrdersValue));
+            sp.Children.Add(BuildLabelValueRow("Stop", out activePosStopValue));
+            sp.Children.Add(BuildLabelValueRow("Takes", out activePosTargetsValue));
+            sp.Children.Add(BuildLabelValueRow("Proteção", out activePosProtectionValue));
+
             activePosCard = EssencialChartGuardTheme.MakeSection("Posição ativa", sp,
-                "Aparece dados quando há posição aberta. Botões preview / disabled.");
+                "Leitura observada da posição quando há trade aberto.");
             return activePosCard;
         }
 
