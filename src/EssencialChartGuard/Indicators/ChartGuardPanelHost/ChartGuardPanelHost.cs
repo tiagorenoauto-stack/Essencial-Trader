@@ -144,16 +144,20 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
             }
         }
 
+        // Show / hide the side panel and its splitter without leaving stray
+        // ColumnDefinitions behind. The function is idempotent: calling it with
+        // the same visible value as the current state is a no-op. Width across
+        // hide → show is preserved through savedPanelWidth / savedSplitterWidth.
         private void ApplyPanelVisibility(bool visible)
         {
-            if (hostGrid == null) return;
+            if (hostGrid == null || panel == null) return;
+
+            bool isAttached = hostGrid.Children.Contains(panel);
 
             if (visible)
             {
-                // Re-add splitter + panel columns (and the splitter / panel
-                // themselves) at the right end of the host grid. We always
-                // re-create the ColumnDefinitions because removing them above
-                // detached them from the grid.
+                if (isAttached) return; // already shown — nothing to do
+
                 splitterColumn = new ColumnDefinition
                 {
                     Width = savedSplitterWidth.Value > 0
@@ -174,7 +178,7 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
                 hostGrid.ColumnDefinitions.Add(addedColumn);
                 int panelColumnIndex = hostGrid.ColumnDefinitions.Count - 1;
 
-                if (resizeThumb != null && !hostGrid.Children.Contains(resizeThumb))
+                if (resizeThumb != null)
                 {
                     Grid.SetColumn(resizeThumb, splitterColumnIndex);
                     Grid.SetRow(resizeThumb, 0);
@@ -182,22 +186,20 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
                         Grid.SetRowSpan(resizeThumb, hostGrid.RowDefinitions.Count);
                     hostGrid.Children.Add(resizeThumb);
                 }
-                if (panel != null && !hostGrid.Children.Contains(panel))
-                {
-                    Grid.SetColumn(panel, panelColumnIndex);
-                    Grid.SetRow(panel, 0);
-                    if (hostGrid.RowDefinitions.Count > 1)
-                        Grid.SetRowSpan(panel, hostGrid.RowDefinitions.Count);
-                    hostGrid.Children.Add(panel);
-                }
+                Grid.SetColumn(panel, panelColumnIndex);
+                Grid.SetRow(panel, 0);
+                if (hostGrid.RowDefinitions.Count > 1)
+                    Grid.SetRowSpan(panel, hostGrid.RowDefinitions.Count);
+                hostGrid.Children.Add(panel);
             }
             else
             {
+                if (!isAttached) return; // already hidden — nothing to do
+
                 if (addedColumn != null) savedPanelWidth = addedColumn.Width;
                 if (splitterColumn != null) savedSplitterWidth = splitterColumn.Width;
 
-                if (panel != null && hostGrid.Children.Contains(panel))
-                    hostGrid.Children.Remove(panel);
+                hostGrid.Children.Remove(panel);
                 if (resizeThumb != null && hostGrid.Children.Contains(resizeThumb))
                     hostGrid.Children.Remove(resizeThumb);
 
