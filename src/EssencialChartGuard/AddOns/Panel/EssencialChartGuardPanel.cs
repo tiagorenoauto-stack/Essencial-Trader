@@ -55,16 +55,14 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
         // Header
         private TextBlock headerTitle;
-        private TextBlock headerSubtitle;
+        private TextBlock accountInstrumentText;
         private Ellipse connDot;
         private Button warnButton;
         private Button settingsButton;
 
-        // Top controls (Modo / Unidade / Conta / Instrumento / ATM)
+        // Top controls (Modo / Unidade / ATM)
         private ComboBox modeCombo;
         private ComboBox unitCombo;
-        private ComboBox accountCombo;
-        private ComboBox instrumentCombo;
         private ComboBox atmStrategyCombo;
 
         // Entry section
@@ -171,9 +169,14 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         {
             RunOnUi(delegate
             {
-                if (connDot != null) connDot.Fill = ResolveDot(dot);
-                if (headerSubtitle != null && !string.IsNullOrEmpty(modeLine))
-                    headerSubtitle.Text = modeLine;
+                if (connDot != null)
+                {
+                    connDot.Fill = ResolveDot(dot);
+                    string tip = string.IsNullOrEmpty(modeLine)
+                        ? "Status da conexão / modo de operação."
+                        : modeLine;
+                    connDot.ToolTip = EssencialChartGuardTheme.WrapTooltip(tip);
+                }
             });
         }
 
@@ -183,7 +186,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             {
                 string acc = string.IsNullOrEmpty(accountName) ? "?" : accountName;
                 string ins = string.IsNullOrEmpty(instrumentFullName) ? "?" : instrumentFullName;
-                if (headerSubtitle != null) headerSubtitle.Text = acc + " · " + ins;
+                if (accountInstrumentText != null) accountInstrumentText.Text = acc + " · " + ins;
             });
         }
 
@@ -202,11 +205,11 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             RunOnUi(delegate
             {
-                if (headerSubtitle != null)
+                if (accountInstrumentText != null)
                 {
                     string acc = string.IsNullOrEmpty(dto.AccountName) ? "?" : dto.AccountName;
                     string ins = string.IsNullOrEmpty(dto.InstrumentFullName) ? "?" : dto.InstrumentFullName;
-                    headerSubtitle.Text = acc + " · " + ins;
+                    accountInstrumentText.Text = acc + " · " + ins;
                 }
 
                 if (activePosDirectionValue != null)
@@ -400,7 +403,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             RunOnUi(delegate
             {
                 if (connDot != null) connDot.Fill = EssencialChartGuardTheme.AccentDotIdle;
-                if (headerSubtitle != null) headerSubtitle.Text = "—";
+                if (accountInstrumentText != null) accountInstrumentText.Text = "—";
 
                 if (activePosHeader != null) activePosHeader.Text = "(sem posição ativa)";
                 if (activePosPnL != null) activePosPnL.Text = " ";
@@ -511,10 +514,10 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
 
-            // Bare card on top: Modo + Unidade + Conta + Instrumento + ATM
+            // Bare card on top: Modo + Unidade + Estratégia (account/instrument
+            // now live in the header frame).
             StackPanel topGroup = new StackPanel { Orientation = Orientation.Vertical };
             topGroup.Children.Add(BuildModeBar());
-            topGroup.Children.Add(BuildAccountInstrumentBar());
             topGroup.Children.Add(BuildAtmStrategyBar());
             content.Children.Add(EssencialChartGuardTheme.MakeBareCard(topGroup));
 
@@ -541,57 +544,98 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 Margin = new Thickness(EssencialChartGuardTheme.SpaceMd, EssencialChartGuardTheme.SpaceSm,
                                         EssencialChartGuardTheme.SpaceMd, EssencialChartGuardTheme.SpaceSm)
             };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // dot
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // brand
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // account/instrument frame
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // warn
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // settings
 
             connDot = new Ellipse
             {
-                Width = 9,
-                Height = 9,
+                Width = 10,
+                Height = 10,
                 Fill = EssencialChartGuardTheme.AccentDotIdle,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceSm, 0),
+                Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceMd, 0),
                 ToolTip = EssencialChartGuardTheme.WrapTooltip("Status da conexão / modo de operação.")
             };
             ToolTipService.SetInitialShowDelay(connDot, 350);
             Grid.SetColumn(connDot, 0);
             grid.Children.Add(connDot);
 
-            StackPanel titleStack = new StackPanel { Orientation = Orientation.Vertical };
             headerTitle = new TextBlock
             {
                 Text = "Essencial ChartGuard",
                 FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeTitle,
+                FontSize = EssencialChartGuardTheme.FontSizeBrand,
                 FontWeight = FontWeights.Bold,
-                Foreground = EssencialChartGuardTheme.Gold
+                Foreground = EssencialChartGuardTheme.Gold,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceMd, 0)
             };
-            headerSubtitle = new TextBlock
+            Grid.SetColumn(headerTitle, 1);
+            grid.Children.Add(headerTitle);
+
+            // Account/instrument shown inside a select-looking frame: thin gold
+            // border + caret. The frame has no dropdown behavior — it just
+            // makes the read-only text feel like part of the form language.
+            accountInstrumentText = new TextBlock
             {
                 Text = "—",
                 FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeSmall,
-                Foreground = EssencialChartGuardTheme.TextSecondary
+                FontSize = EssencialChartGuardTheme.FontSizeBody,
+                Foreground = EssencialChartGuardTheme.TextSecondary,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
-            titleStack.Children.Add(headerTitle);
-            titleStack.Children.Add(headerSubtitle);
-            Grid.SetColumn(titleStack, 1);
-            grid.Children.Add(titleStack);
+            TextBlock caret = new TextBlock
+            {
+                Text = "▾",
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = EssencialChartGuardTheme.FontSizeSmall,
+                Foreground = EssencialChartGuardTheme.GoldDim,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceSm, 0, 0, 0)
+            };
+            Grid frameContent = new Grid();
+            frameContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            frameContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(accountInstrumentText, 0);
+            Grid.SetColumn(caret, 1);
+            frameContent.Children.Add(accountInstrumentText);
+            frameContent.Children.Add(caret);
+
+            Border accountInstrumentFrame = new Border
+            {
+                BorderBrush = EssencialChartGuardTheme.GoldDim,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(EssencialChartGuardTheme.SpaceSm,
+                                         EssencialChartGuardTheme.SpaceXs,
+                                         EssencialChartGuardTheme.SpaceSm,
+                                         EssencialChartGuardTheme.SpaceXs),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceSm, 0),
+                Child = frameContent,
+                ToolTip = EssencialChartGuardTheme.WrapTooltip(
+                    "Conta e instrumento detectados pelo host (snapshot + EventBridge). Leitura — não troca de conta aqui.")
+            };
+            ToolTipService.SetInitialShowDelay(accountInstrumentFrame, 350);
+            Grid.SetColumn(accountInstrumentFrame, 2);
+            grid.Children.Add(accountInstrumentFrame);
 
             warnButton = MakeIconButton("⚠",
                 "Aviso. Visual reservado; nenhuma ação está ligada nesta versão.");
             warnButton.Foreground = EssencialChartGuardTheme.AccentWarn;
             warnButton.Visibility = Visibility.Collapsed;
             warnButton.IsEnabled = false;
-            Grid.SetColumn(warnButton, 2);
+            Grid.SetColumn(warnButton, 3);
             grid.Children.Add(warnButton);
 
             settingsButton = MakeGoldIconButton("⚙",
                 "Configurações (preview / disabled). Não está ligada nesta versão.");
             settingsButton.IsEnabled = false;
-            Grid.SetColumn(settingsButton, 3);
+            Grid.SetColumn(settingsButton, 4);
             grid.Children.Add(settingsButton);
 
             return new Border
@@ -633,32 +677,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             unitCol.Children.Add(unitCombo);
             Grid.SetColumn(unitCol, 1);
             g.Children.Add(unitCol);
-
-            return new Border { Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceSm), Child = g };
-        }
-
-        private Border BuildAccountInstrumentBar()
-        {
-            Grid g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            StackPanel accCol = MakeFieldColumn("Conta");
-            accountCombo = EssencialChartGuardTheme.MakeCombo(
-                "Conta detectada pelo host. Preview / disabled (a seleção real vem do indicator).");
-            DisableInput(accountCombo);
-            accCol.Children.Add(accountCombo);
-            Grid.SetColumn(accCol, 0);
-            g.Children.Add(accCol);
-
-            StackPanel instCol = MakeFieldColumn("Instrumento");
-            instrumentCombo = EssencialChartGuardTheme.MakeCombo(
-                "Instrumento detectado do chart. Preview / disabled.");
-            instrumentCombo.IsEditable = false;
-            DisableInput(instrumentCombo);
-            instCol.Children.Add(instrumentCombo);
-            Grid.SetColumn(instCol, 1);
-            g.Children.Add(instCol);
 
             return new Border { Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceSm), Child = g };
         }
