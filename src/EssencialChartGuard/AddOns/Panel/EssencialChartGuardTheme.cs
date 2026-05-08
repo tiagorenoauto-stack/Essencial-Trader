@@ -12,21 +12,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
     // typography, and helpers to build typical WPF elements with a consistent
     // look). It must never depend on:
     //   * NinjaTrader.Cbi / NinjaTrader.Data trading types,
-    //   * the Safe Core trading services,
-    //   * any historical "Cunha" / "CunhaTrader" / "CunhaScalper" / "Gold"
-    //     code (only the visual direction is borrowed; no class, namespace,
-    //     file, or visible string is reused).
-    //
-    // Phase 3.x note: the rich builder set below (MakeSection, MakeButton,
-    // MakeNumberBox, MakeCombo, MakeProgressBar, etc.) is what the upcoming
-    // panel shell will consume. The simpler `Create*` helpers (CreateCard,
-    // CreateSectionTitle, CreateSectionUnderline, CreateLabel, CreateValue,
-    // CreateStatusDot) and the original color/typography token names
-    // (BackgroundRoot, AccentGold, FontSizeBrand, ...) are kept as aliases
-    // so the existing `EssencialChartGuardPanel` and
-    // `ChartGuardReadOnlyLineRenderer` keep compiling without any change.
-    // When the new panel shell replaces the current one, the aliases that
-    // are no longer referenced can be removed.
+    //   * the Safe Core trading services.
     public static class EssencialChartGuardTheme
     {
         // =====================================================================
@@ -34,9 +20,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         // =====================================================================
 
         // Surfaces. Near-black root, slightly lighter cards, slightly lighter
-        // input rows. The new shell uses BgRoot / BgSurface / BgSurface2 /
-        // BgHover. The old shell used BackgroundRoot / BackgroundCard /
-        // BackgroundInput / BackgroundDisabled. Both sets are kept.
+        // input rows.
         public static readonly Brush BgRoot = Freeze(FromHex("#06070A"));
         public static readonly Brush BgSurface = Freeze(FromHex("#10121A"));
         public static readonly Brush BgSurface2 = Freeze(FromHex("#181C24"));
@@ -47,9 +31,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         public static readonly Brush BorderStrong = Freeze(FromHex("#404750"));
         public static readonly Brush Divider = Freeze(FromHex("#22272C"));
 
-        // Text. The new shell uses TextPrimary / TextSecondary / TextMuted /
-        // TextDisabled. Tokens are shared with the old shell so old call
-        // sites continue to compile.
+        // Text.
         public static readonly Brush TextPrimary = Freeze(FromHex("#F5F7FA"));
         public static readonly Brush TextSecondary = Freeze(FromHex("#C0C8D2"));
         public static readonly Brush TextMuted = Freeze(FromHex("#868E99"));
@@ -82,28 +64,12 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         public static readonly Brush RiskAmber = Freeze(FromHex("#FFB82E"));
         public static readonly Brush RiskRed = Freeze(FromHex("#FF294D"));
 
-        // ---------------------------------------------------------------------
-        // Compatibility aliases consumed by the current panel + renderer.
-        // These will go away when the new shell takes over.
-        // ---------------------------------------------------------------------
-
-        public static readonly Brush BackgroundRoot = BgRoot;
-        public static readonly Brush BackgroundCard = BgSurface;
-        public static readonly Brush BackgroundInput = BgSurface2;
-        public static readonly Brush BackgroundDisabled = Freeze(FromHex("#202329"));
-        public static readonly Brush BorderSubtle = Border;
-        // BorderStrong already exists with the same semantics, keep as-is.
-
-        public static readonly Brush AccentGold = Gold;
-        public static readonly Brush AccentGoldDim = GoldDim;
-        public static readonly Brush AccentGreen = Freeze(FromHex("#3FB35E"));
-        public static readonly Brush AccentRed = Freeze(FromHex("#D14B4B"));
-        public static readonly Brush AccentBlue = Freeze(FromHex("#4D8CD9"));
-        public static readonly Brush AccentOrange = Freeze(FromHex("#D98545"));
+        // Status dots (idle / ok / warn / error) used by the panel header,
+        // observation card, and read-only line renderer.
         public static readonly Brush AccentDotIdle = Freeze(FromHex("#5C6373"));
-        public static readonly Brush AccentDotOk = AccentGreen;
-        public static readonly Brush AccentDotWarn = AccentOrange;
-        public static readonly Brush AccentDotError = AccentRed;
+        public static readonly Brush AccentDotOk = Freeze(FromHex("#3FB35E"));
+        public static readonly Brush AccentDotWarn = Freeze(FromHex("#D98545"));
+        public static readonly Brush AccentDotError = Freeze(FromHex("#D14B4B"));
 
         // =====================================================================
         // Typography
@@ -537,45 +503,9 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         }
 
         // =====================================================================
-        // Builders (legacy aliases) — used by the current panel + renderer
+        // Simple builders consumed by EssencialChartGuardPanel and the
+        // read-only line renderer.
         // =====================================================================
-
-        public static Border CreateCard()
-        {
-            return new Border
-            {
-                Background = BackgroundCard,
-                BorderBrush = BorderSubtle,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(CardCornerRadius),
-                Padding = CardPadding,
-                Margin = CardSpacing
-            };
-        }
-
-        public static TextBlock CreateSectionTitle(string text)
-        {
-            return new TextBlock
-            {
-                Text = (text ?? string.Empty).ToUpperInvariant(),
-                Foreground = AccentGold,
-                FontFamily = FontUi,
-                FontSize = FontSizeSectionHeader,
-                FontWeight = FontWeights.SemiBold,
-                Margin = SectionHeaderMargin
-            };
-        }
-
-        public static Border CreateSectionUnderline()
-        {
-            return new Border
-            {
-                Background = AccentGoldDim,
-                Height = 1,
-                Margin = new Thickness(0, 0, 0, 6),
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
-        }
 
         public static TextBlock CreateLabel(string text)
         {

@@ -14,17 +14,18 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 {
     // Phase 1/2 read-only side-panel shell.
     //
-    // Visual identity is the same of the legacy "Cunha" panel (header gold
-    // brand + conn dot + warn + settings, bare card with Modo/Unidade/Conta/
-    // Instrumento/ATM, Entrada section with Tipo/Qty/Sizing/Buy/Sell/Panic,
-    // Posição Ativa with Takes/Stop/Trail/Lock R/BE, Risco with progress
-    // bars, Sessão placeholder, Toast overlay). The WPF building blocks are
-    // copied verbatim where they are pure layout; every event-handler and
-    // every reference to Account / Instrument / BracketManager / RiskEngine
-    // / HotKeyManager / Settings is intentionally NOT carried over. The
-    // controls render but do nothing -- they are kept IsEnabled=false so the
-    // panel is read-only by contract while the Safe Core wiring evolves in
-    // later phases.
+    // Visual structure: header (gold brand + conn dot + warn + settings),
+    // top card with Modo/Unidade/Conta/Instrumento/ATM, Entrada section
+    // (Tipo/Qty/Sizing/Buy/Sell/Panic), Posição ativa
+    // (Takes/Stop/Trail/Lock R/BE), Risco (progress bars), Sessão, and a
+    // Toast overlay. The visual direction is informed by
+    // `docs/panel-visual-audit-cunha.md` — only the layout intent is
+    // borrowed; no class, namespace, file, or string is reused from any
+    // historical project. Every event handler and every reference to
+    // Account / Instrument / BracketManager / RiskEngine / HotKeyManager /
+    // Settings is intentionally NOT carried over. Controls render but do
+    // nothing -- they are kept IsEnabled=false so the panel is read-only
+    // by contract while the Safe Core wiring evolves in later phases.
     //
     // Public surface preserved (the host calls these and they must keep
     // working without any host change):
@@ -49,7 +50,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
     public sealed class EssencialChartGuardPanel : UserControl
     {
         // =====================================================================
-        // UI fields (mirrors the legacy panel; pure references)
+        // UI fields (pure references; no event handlers attached)
         // =====================================================================
 
         // Header
@@ -66,9 +67,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         private ComboBox instrumentCombo;
         private ComboBox atmStrategyCombo;
 
-        // Header summary chip (Position · qty · avg · wo) -- carried from the
-        // existing panel so the host's SetObservedState keeps lighting up the
-        // exact same line.
         // Entry section
         private ComboBox orderTypeCombo;
         private StackPanel limitPriceRow;
@@ -87,11 +85,9 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         private TextBlock activePosPnL;
         private WrapPanel takesList;
         private TextBox takeInputBox;
-        private Button addTakeButton;
         private TextBlock stopValueText;
         private WrapPanel stopChipsHost;
         private TextBox stopInputBox;
-        private Button setStopButton;
         private ComboBox trailCombo;
         private Button lock1RBtn;
         private Button lock2RBtn;
@@ -124,7 +120,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         private TextBlock riskDailyLimitValue;
         private TextBlock riskStatusValue;
         private TextBlock riskBlockStatusValue;
-        private ComboBox riskModeSelect;
 
         // Session section
         private Border sessionCard;
@@ -139,21 +134,13 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         private Ellipse bridgeDot;
         private TextBlock bridgeText;
 
-        // Strategy / Entry plan / Takes / Stop / Protection cards
-        private Border strategyCard;
-        private ComboBox strategySelect;
+        // Section roots referenced by SetSectionsVisibility
         private Border entryCard;
-        private ComboBox entryTypeSelect;
-        private TextBox entryQtyBox;
-        private ComboBox entrySizingSelect;
-        private ComboBox entryUnitSelect;
-        private TextBox entryStopBox;
-        private TextBox entryTargetBox;
-        private Border takesCard;
+
+        // Takes empty-hint TextBlock — kept here because the takes summary text
+        // is updated by SetTakeTargetsDraft even though the panel currently has
+        // no dedicated takes card.
         private TextBlock takesEmptyHint;
-        private Border stopCard;
-        private TextBlock stopCurrentValue;
-        private Border protectionCard;
 
         // Toast overlay
         private Border toastHost;
@@ -264,8 +251,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 if (orderTypeCombo != null && !string.IsNullOrEmpty(orderType))
                     SetComboPlaceholder(orderTypeCombo, orderType);
                 if (qtyBox != null) qtyBox.Text = NullToDash(qty);
-                if (entryStopBox != null) entryStopBox.Text = NullToDash(stop);
-                if (entryTargetBox != null) entryTargetBox.Text = NullToDash(target);
+                if (stopInputBox != null) stopInputBox.Text = NullToDash(stop);
+                if (takeInputBox != null) takeInputBox.Text = NullToDash(target);
             });
         }
 
@@ -314,7 +301,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         {
             RunOnUi(delegate
             {
-                if (strategySelect != null) SetComboPlaceholder(strategySelect, NullToDash(strategyName));
+                if (atmStrategyCombo != null) SetComboPlaceholder(atmStrategyCombo, NullToDash(strategyName));
             });
         }
 
@@ -322,8 +309,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         {
             RunOnUi(delegate
             {
-                if (strategySelect != null)
-                    SetComboPlaceholder(strategySelect, NullToDash(draft == null ? null : draft.Name));
+                if (atmStrategyCombo != null)
+                    SetComboPlaceholder(atmStrategyCombo, NullToDash(draft == null ? null : draft.Name));
                 if (draft == null) return;
                 SetEntryPlanDraft(draft.DefaultEntryPlan);
                 SetStopDraft(draft.DefaultStop);
@@ -340,10 +327,9 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 EntryPlanDraft safe = draft ?? EntryPlanDraft.Default();
                 if (orderTypeCombo != null) SetComboPlaceholder(orderTypeCombo, NullToDash(safe.EntryType));
                 if (qtyBox != null) qtyBox.Text = QuantityToText(safe.Quantity);
-                if (entrySizingSelect != null) SetComboPlaceholder(entrySizingSelect, NullToDash(safe.SizingMode));
-                if (entryUnitSelect != null) SetComboPlaceholder(entryUnitSelect, NullToDash(safe.Unit));
-                if (entryStopBox != null) entryStopBox.Text = NullToDash(safe.Stop);
-                if (entryTargetBox != null) entryTargetBox.Text = NullToDash(safe.Target);
+                if (unitCombo != null) SetComboPlaceholder(unitCombo, NullToDash(safe.Unit));
+                if (stopInputBox != null) stopInputBox.Text = NullToDash(safe.Stop);
+                if (takeInputBox != null) takeInputBox.Text = NullToDash(safe.Target);
             });
         }
 
@@ -366,8 +352,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             RunOnUi(delegate
             {
                 string current = draft == null ? null : draft.Current;
-                if (stopCurrentValue != null) stopCurrentValue.Text = NullToDash(current);
-                if (entryStopBox != null) entryStopBox.Text = NullToDash(current);
+                if (stopValueText != null) stopValueText.Text = NullToDash(current);
+                if (stopInputBox != null) stopInputBox.Text = NullToDash(current);
                 if (activePosStopValue != null) activePosStopValue.Text = NullToDash(current);
             });
         }
@@ -386,7 +372,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             RunOnUi(delegate
             {
                 RiskModeDraft safe = draft ?? RiskModeDraft.Alert();
-                if (riskModeSelect != null) SetComboPlaceholder(riskModeSelect, NullToDash(safe.Mode));
                 if (riskDailyLimitValue != null) riskDailyLimitValue.Text = NullToDash(safe.DailyLimit);
                 if (riskStatusValue != null) riskStatusValue.Text = NullToDash(safe.Status);
                 if (riskBlockStatusValue != null) riskBlockStatusValue.Text = NullToDash(safe.BlockStatus);
@@ -397,12 +382,13 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         {
             RunOnUi(delegate
             {
-                ApplyVisibility(strategyCard, sections.ShowStrategy);
+                // Strategy / Takes / Stop / Protection currently render inside
+                // the entry + active-position cards — there are no dedicated
+                // section roots for them, so their flags are accepted but not
+                // applied. They remain in the public struct so future phases
+                // can split the cards without changing the host API.
                 ApplyVisibility(entryCard, sections.ShowEntry);
                 ApplyVisibility(activePosCard, sections.ShowActivePosition);
-                ApplyVisibility(takesCard, sections.ShowTakes);
-                ApplyVisibility(stopCard, sections.ShowStop);
-                ApplyVisibility(protectionCard, sections.ShowProtection);
                 ApplyVisibility(riskCard, sections.ShowRisk);
                 ApplyVisibility(sessionCard, sections.ShowSession);
                 ApplyVisibility(observationCard, sections.ShowObservation);
@@ -456,7 +442,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
                 if (takesList != null) RebuildTakesPlaceholder();
                 if (stopChipsHost != null) stopChipsHost.Children.Clear();
-                if (stopCurrentValue != null) stopCurrentValue.Text = "-";
+                if (stopValueText != null) stopValueText.Text = "-";
                 if (takesEmptyHint != null)
                 {
                     takesEmptyHint.Text = "(no targets defined)";
@@ -499,7 +485,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         }
 
         // =====================================================================
-        // Layout (mirrors the legacy panel; no event handlers attached)
+        // Layout (no event handlers attached anywhere)
         // =====================================================================
 
         private void BuildUI()
@@ -698,9 +684,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             Grid.SetColumnSpan(atmCol, 2);
             g.Children.Add(atmCol);
 
-            // Strategy is the first card; expose the combobox to SetStrategyDraft.
-            strategySelect = atmStrategyCombo;
-
             return new Border { Margin = new Thickness(0, 0, 0, 0), Child = g };
         }
 
@@ -860,13 +843,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             DisableInput(panicButton);
             sp.Children.Add(panicButton);
 
-            // Aliases the host already populates via SetEntryPlanDraft etc.
-            entryTypeSelect = orderTypeCombo;
-            entryQtyBox = qtyBox;
-            entrySizingSelect = null; // sizing comes from a checkbox, kept null
-            entryUnitSelect = unitCombo;
-            // entryStopBox / entryTargetBox set by the active-position chips path below.
-
             entryCard = EssencialChartGuardTheme.MakeSection("Entrada", sp,
                 "Disparo de novo trade. Tudo aqui é preview / disabled nesta versão.");
             return entryCard;
@@ -915,7 +891,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 labelText: "Takes",
                 labelTooltip: "Alvos. Preview / disabled. Adicionar pelo + ainda não está ligado.",
                 inputAssign: tb => takeInputBox = tb,
-                addAssign: bt => addTakeButton = bt,
+                addAssign: null,
                 addTooltip: "Adicionar alvo (preview / disabled).",
                 chipsHost: out takesList);
             sp.Children.Add(takesInline);
@@ -934,7 +910,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 labelText: "Stop",
                 labelTooltip: "Stop loss. Preview / disabled.",
                 inputAssign: tb => stopInputBox = tb,
-                addAssign: bt => setStopButton = bt,
+                addAssign: null,
                 addTooltip: "Aplicar valor (preview / disabled).",
                 chipsHost: out WrapPanel stopChipsWrap);
             stopChipsHost = stopChipsWrap;
@@ -1000,17 +976,10 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             sp.Children.Add(lockRow);
 
-            // Aliases used by the existing host mutators. Take/Stop visuals
-            // double as the entry-plan stop/target preview targets.
-            entryStopBox = stopInputBox;
-            entryTargetBox = takeInputBox;
-            takesEmptyHint = new TextBlock();   // placeholder so SetTakeTargetsDraft never NRE's
-            stopCurrentValue = stopValueText;
-            takesCard = null;                   // visibility flags map to activePosCard for now
-            stopCard = null;
-            protectionCard = null;
-            strategyCard = null;
-            riskModeSelect = null;              // risk-mode preview lives in the risk card below
+            // SetTakeTargetsDraft writes into takesEmptyHint; create a detached
+            // placeholder so the mutator stays NRE-safe even though the takes
+            // card was folded into the active-position card.
+            takesEmptyHint = new TextBlock();
 
             activePosCard = EssencialChartGuardTheme.MakeSection("Posição ativa", sp,
                 "Aparece dados quando há posição aberta. Botões preview / disabled.");
