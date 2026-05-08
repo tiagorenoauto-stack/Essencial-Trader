@@ -907,7 +907,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             sp.Children.Add(BuildLabelValueRow("PnL $", out activePosPnLCashValue));
             sp.Children.Add(BuildLabelValueRow("Ordens pendentes", out activePosWorkingOrdersValue));
             sp.Children.Add(BuildLabelValueRow("Stop", out activePosStopValue));
-            sp.Children.Add(BuildLabelValueRow("Alvos", out activePosTargetsValue));
+            sp.Children.Add(BuildLabelValueRow("Takes", out activePosTargetsValue));
             sp.Children.Add(BuildLabelValueRow("Proteção", out activePosProtectionValue));
 
             // Takes inline chips row
