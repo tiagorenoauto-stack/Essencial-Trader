@@ -1488,14 +1488,18 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             c.Cursor = Cursors.No;
         }
 
-        private static void DisableChildren(Panel p)
+        // Note: this file lives in a namespace ending in `.Panel`, so the
+        // unqualified name `Panel` resolves to the namespace rather than
+        // System.Windows.Controls.Panel. The fully-qualified name avoids the
+        // ambiguity.
+        private static void DisableChildren(System.Windows.Controls.Panel p)
         {
             if (p == null) return;
             foreach (UIElement child in p.Children)
             {
                 Control c = child as Control;
                 if (c != null) DisableInput(c);
-                Panel inner = child as Panel;
+                System.Windows.Controls.Panel inner = child as System.Windows.Controls.Panel;
                 if (inner != null) DisableChildren(inner);
             }
         }
