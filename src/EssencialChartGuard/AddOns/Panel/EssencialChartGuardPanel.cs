@@ -1,66 +1,110 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Threading;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel.Models;
 using NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.SafeCore.State;
 
 namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 {
-    // Phase 1 visual shell of the Essencial ChartGuard side panel.
+    // Phase 1/2 read-only side-panel shell.
     //
-    // CONTRACT (do NOT loosen without updating docs/manual-test-checklist.md):
-    //   * Read-only. The panel renders observed state and disabled placeholders for the
-    //     final operational layout (header, strategy, entry, active position, takes, stop,
-    //     protection, risk, session, observation). NO control here issues a command, sends
-    //     an order, cancels an order, modifies an order, or flattens a position.
-    //   * Every actionable control (Button / ComboBox / TextBox / settings icon) is built
-    //     with IsEnabled=false. None of them attaches Click/MouseDown/MouseUp/PreviewMouse
-    //     handlers. There is no ContextMenu, no KeyBinding, no InputBindings, no hotkey.
-    //   * No reference to NinjaTrader.Cbi / NinjaTrader.Data trading types.
-    //   * No code, no class names, no namespaces, no visible strings inherited from any
-    //     historical CunhaTrader / CunhaScalper / Gold panel. The visual *direction* (right
-    //     side, dark dense card layout, gold section labels, big buy/sell/panic) is
-    //     inspired only by docs/panel-visual-audit-cunha.md and docs/plano-integrado-chartguard-pt.md.
+    // Visual identity is the same of the legacy "Cunha" panel (header gold
+    // brand + conn dot + warn + settings, bare card with Modo/Unidade/Conta/
+    // Instrumento/ATM, Entrada section with Tipo/Qty/Sizing/Buy/Sell/Panic,
+    // Posição Ativa with Takes/Stop/Trail/Lock R/BE, Risco with progress
+    // bars, Sessão placeholder, Toast overlay). The WPF building blocks are
+    // copied verbatim where they are pure layout; every event-handler and
+    // every reference to Account / Instrument / BracketManager / RiskEngine
+    // / HotKeyManager / Settings is intentionally NOT carried over. The
+    // controls render but do nothing -- they are kept IsEnabled=false so the
+    // panel is read-only by contract while the Safe Core wiring evolves in
+    // later phases.
     //
-    // The control is built entirely in code (no XAML) so it ships with the rest of the .cs
-    // files into NinjaTrader's user folder without an extra resource pipeline.
+    // Public surface preserved (the host calls these and they must keep
+    // working without any host change):
+    //   * SetConnectionStatus / SetAccountAndInstrument
+    //   * SetObservedState / SetSnapshotStatus / SetBridgeStatus
+    //   * SetEntryPlanPlaceholders
+    //   * SetActivePositionPnL / SetActivePositionProtection
+    //   * SetRiskMetrics / SetSessionMetrics / SetStrategyName
+    //   * SetSectionsVisibility / ResetVisualToIdle
+    //   * SetStrategyDraft / SetEntryPlanDraft / SetTakeTargetsDraft
+    //     SetStopDraft / SetProtectionDraft / SetRiskModeDraft
+    //   * Enums ConnectionDot, struct EssencialChartGuardPanelSections
+    //
+    // The panel does NOT:
+    //   * attach Click / SelectionChanged / TextChanged / MouseDown / MouseUp
+    //     / PreviewMouse* / ContextMenu / KeyBinding / InputBindings handlers
+    //     to any input control,
+    //   * import NinjaTrader.Cbi or NinjaTrader.Data,
+    //   * call Account.Submit / Account.CreateOrder / AtmStrategyCreate /
+    //     EnableForControlledTest,
+    //   * persist any settings.
     public sealed class EssencialChartGuardPanel : UserControl
     {
-        // ---- Header ----
-        private TextBlock brandText;
-        private System.Windows.Shapes.Ellipse connectionDot;
-        private TextBlock modeText;
-        private Button settingsIconButton; // gear icon, disabled
-        private TextBlock accountInstrumentText;
+        // =====================================================================
+        // UI fields (mirrors the legacy panel; pure references)
+        // =====================================================================
+
+        // Header
+        private TextBlock headerTitle;
+        private TextBlock headerSubtitle;
+        private Ellipse connDot;
+        private Button warnButton;
+        private Button settingsButton;
+
+        // Top controls (Modo / Unidade / Conta / Instrumento / ATM)
+        private ComboBox modeCombo;
+        private ComboBox unitCombo;
+        private ComboBox accountCombo;
+        private ComboBox instrumentCombo;
+        private ComboBox atmStrategyCombo;
+
+        // Header summary chip (Position · qty · avg · wo) -- carried from the
+        // existing panel so the host's SetObservedState keeps lighting up the
+        // exact same line.
         private TextBlock summaryPositionText;
         private TextBlock summaryQtyText;
         private TextBlock summaryAvgText;
         private TextBlock summaryWorkingOrdersText;
 
-        // ---- Strategy section (disabled) ----
-        private Border strategyCard;
-        private ComboBox strategySelect;
-        private Button strategyAddButton;
-        private Button strategyEditButton;
-        private Button strategyDuplicateButton;
-        private Button strategyDeleteButton;
+        // Entry section
+        private ComboBox orderTypeCombo;
+        private StackPanel limitPriceRow;
+        private TextBox limitPriceBox;
+        private TextBox qtyBox;
+        private CheckBox usePosSizingCheck;
+        private TextBox riscoPctBox;
+        private TextBlock sizingResultText;
+        private Button buyButton;
+        private Button sellButton;
+        private Button panicButton;
 
-        // ---- Entry section (disabled) ----
-        private Border entryCard;
-        private ComboBox entryTypeSelect;
-        private TextBox entryQtyBox;
-        private ComboBox entrySizingSelect;
-        private ComboBox entryUnitSelect;
-        private TextBox entryStopBox;
-        private TextBox entryTargetBox;
-        private Button entryBuyButton;
-        private Button entrySellButton;
-        private Button entryPanicButton;
+        // Active position section
+        private Border activePosCard;
+        private TextBlock activePosHeader;
+        private TextBlock activePosPnL;
+        private WrapPanel takesList;
+        private TextBox takeInputBox;
+        private Button addTakeButton;
+        private TextBlock stopValueText;
+        private WrapPanel stopChipsHost;
+        private TextBox stopInputBox;
+        private Button setStopButton;
+        private ComboBox trailCombo;
+        private Button lock1RBtn;
+        private Button lock2RBtn;
+        private Button lock3RBtn;
+        private Button beBtn;
 
-        // ---- Active Position section (read-only) ----
-        private Border activePositionCard;
+        // Active position rich rows (kept from previous panel for the host's
+        // SetActivePositionPnL / SetActivePositionProtection mutators)
         private TextBlock activePosDirectionValue;
         private TextBlock activePosQtyValue;
         private TextBlock activePosEntryValue;
@@ -74,90 +118,80 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         private TextBlock activePosTargetsValue;
         private TextBlock activePosProtectionValue;
 
-        // ---- Takes section (disabled) ----
-        private Border takesCard;
-        private TextBlock takesEmptyHint;
-        private Button takesAddButton;
-        private Button takesEditButton;
-        private Button takesRemoveButton;
-
-        // ---- Stop section (disabled) ----
-        private Border stopCard;
-        private TextBlock stopCurrentValue;
-        private Button stopEditButton;
-
-        // ---- Protection section (disabled) ----
-        private Border protectionCard;
-        private Button protectionBeButton;
-        private Button protectionLock1RButton;
-        private Button protectionLock2RButton;
-        private Button protectionLock3RButton;
-        private Button protectionTrailButton;
-
-        // ---- Risk section (read-only + disabled mode select) ----
+        // Risk section
         private Border riskCard;
+        private TextBlock saldoValue;
+        private TextBlock quebraEmValue;
+        private TextBlock pctUsedValue;
+        private Border pctUsedBar;
+        private TextBlock metaProgressText;
+        private Border metaBar;
         private TextBlock riskDailyLimitValue;
         private TextBlock riskStatusValue;
         private TextBlock riskBlockStatusValue;
         private ComboBox riskModeSelect;
 
-        // ---- Session section (read-only) ----
+        // Session section
         private Border sessionCard;
         private TextBlock sessionTradesValue;
         private TextBlock sessionPnLValue;
         private TextBlock sessionTimeValue;
 
-        // ---- Observation section (read-only) ----
+        // Observation card (Snapshot dot + EventBridge dot)
         private Border observationCard;
-        private System.Windows.Shapes.Ellipse snapshotDot;
+        private Ellipse snapshotDot;
         private TextBlock snapshotText;
-        private System.Windows.Shapes.Ellipse bridgeDot;
+        private Ellipse bridgeDot;
         private TextBlock bridgeText;
+
+        // Strategy / Entry plan / Takes / Stop / Protection cards
+        private Border strategyCard;
+        private ComboBox strategySelect;
+        private Border entryCard;
+        private ComboBox entryTypeSelect;
+        private TextBox entryQtyBox;
+        private ComboBox entrySizingSelect;
+        private ComboBox entryUnitSelect;
+        private TextBox entryStopBox;
+        private TextBox entryTargetBox;
+        private Border takesCard;
+        private TextBlock takesEmptyHint;
+        private Border stopCard;
+        private TextBlock stopCurrentValue;
+        private Border protectionCard;
+
+        // Toast overlay
+        private Border toastHost;
+        private TextBlock toastText;
+        private DispatcherTimer toastTimer;
+
+        // =====================================================================
+        // Construction
+        // =====================================================================
 
         public EssencialChartGuardPanel()
         {
             HorizontalAlignment = HorizontalAlignment.Stretch;
             VerticalAlignment = VerticalAlignment.Stretch;
-            Background = EssencialChartGuardTheme.BackgroundRoot;
+            Background = EssencialChartGuardTheme.BgRoot;
             Focusable = false;
+            MinWidth = 380;
 
-            ScrollViewer scroller = new ScrollViewer
-            {
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Padding = EssencialChartGuardTheme.PanelOuterPadding,
-                Background = EssencialChartGuardTheme.BackgroundRoot,
-                Focusable = false
-            };
-
-            StackPanel root = new StackPanel { Orientation = Orientation.Vertical };
-            scroller.Content = root;
-            Content = scroller;
-
-            root.Children.Add(BuildHeader());
-            root.Children.Add(BuildStrategyCard());
-            root.Children.Add(BuildEntryCard());
-            root.Children.Add(BuildActivePositionCard());
-            root.Children.Add(BuildTakesCard());
-            root.Children.Add(BuildStopCard());
-            root.Children.Add(BuildProtectionCard());
-            root.Children.Add(BuildRiskCard());
-            root.Children.Add(BuildSessionCard());
-            root.Children.Add(BuildObservationCard());
-
+            BuildUI();
             ResetVisualToIdle();
         }
 
-        // ============================================================================
-        // Public mutators — host-only. NONE of them emits any order/command.
-        // ============================================================================
+        // =====================================================================
+        // Public mutators (host-only). NONE of them issues any order/command.
+        // =====================================================================
 
         public void SetConnectionStatus(ConnectionDot dot, string modeLine)
         {
             RunOnUi(delegate
             {
-                if (connectionDot != null) connectionDot.Fill = ResolveDot(dot);
-                if (modeText != null) modeText.Text = modeLine ?? string.Empty;
+                if (connDot != null) connDot.Fill = ResolveDot(dot);
+                if (headerSubtitle != null && !string.IsNullOrEmpty(modeLine))
+                    headerSubtitle.Text = modeLine;
             });
         }
 
@@ -165,21 +199,12 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         {
             RunOnUi(delegate
             {
-                if (accountInstrumentText == null) return;
                 string acc = string.IsNullOrEmpty(accountName) ? "?" : accountName;
                 string ins = string.IsNullOrEmpty(instrumentFullName) ? "?" : instrumentFullName;
-                accountInstrumentText.Text = acc + " / " + ins;
+                if (headerSubtitle != null) headerSubtitle.Text = acc + " · " + ins;
             });
         }
 
-        // Pushes the observed account snapshot into the header summary line and the
-        // Active Position card. PnL fields stay "-" until a real PnL source is wired.
-        //
-        // Flat-position rule: when there is no open position (Flat with zero quantity, or
-        // Unknown), the "average / entry" reading must not display the previous fill price
-        // -- there is no average to report. The "Last fill" row still shows the last
-        // observed execution price when one exists, because it is informational about the
-        // most recent execution rather than about the (no longer open) position.
         public void SetObservedState(ObservedAccountSnapshotDto dto)
         {
             string positionText = dto.Position.ToString();
@@ -195,11 +220,11 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             RunOnUi(delegate
             {
-                if (accountInstrumentText != null)
+                if (headerSubtitle != null)
                 {
                     string acc = string.IsNullOrEmpty(dto.AccountName) ? "?" : dto.AccountName;
                     string ins = string.IsNullOrEmpty(dto.InstrumentFullName) ? "?" : dto.InstrumentFullName;
-                    accountInstrumentText.Text = acc + " / " + ins;
+                    headerSubtitle.Text = acc + " · " + ins;
                 }
 
                 if (summaryPositionText != null)
@@ -220,6 +245,11 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 if (activePosEntryValue != null) activePosEntryValue.Text = avgPriceText;
                 if (activePosLastFillValue != null) activePosLastFillValue.Text = lastPriceText;
                 if (activePosWorkingOrdersValue != null) activePosWorkingOrdersValue.Text = workingText;
+
+                if (activePosHeader != null)
+                    activePosHeader.Text = hasOpenPosition
+                        ? (dto.Position == ObservedPosition.Long ? "COMPRADO " : "VENDIDO ") + qtyText + " @ " + avgPriceText
+                        : "(sem posição ativa)";
             });
         }
 
@@ -241,103 +271,18 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             });
         }
 
-        // Disabled-placeholder labels for the ENTRY card. Empty/null becomes "-".
         public void SetEntryPlanPlaceholders(string orderType, string qty, string stop, string target)
         {
             RunOnUi(delegate
             {
-                if (entryTypeSelect != null && !string.IsNullOrEmpty(orderType))
-                    SetComboPlaceholder(entryTypeSelect, orderType);
-                if (entryQtyBox != null) entryQtyBox.Text = NullToDash(qty);
+                if (orderTypeCombo != null && !string.IsNullOrEmpty(orderType))
+                    SetComboPlaceholder(orderTypeCombo, orderType);
+                if (qtyBox != null) qtyBox.Text = NullToDash(qty);
                 if (entryStopBox != null) entryStopBox.Text = NullToDash(stop);
                 if (entryTargetBox != null) entryTargetBox.Text = NullToDash(target);
             });
         }
 
-        // Phase 2 preview model mutator. It renders draft values only.
-        public void SetStrategyDraft(StrategyDraft draft)
-        {
-            RunOnUi(delegate
-            {
-                if (strategySelect != null)
-                    SetComboPlaceholder(strategySelect, NullToDash(draft == null ? null : draft.Name));
-
-                if (draft == null) return;
-                SetEntryPlanDraft(draft.DefaultEntryPlan);
-                SetStopDraft(draft.DefaultStop);
-                SetTakeTargetsDraft(draft.DefaultTargets);
-                SetProtectionDraft(draft.DefaultProtection);
-                SetRiskModeDraft(draft.DefaultRiskMode);
-            });
-        }
-
-        // Phase 2 preview model mutator. It updates disabled ENTRY fields only.
-        public void SetEntryPlanDraft(EntryPlanDraft draft)
-        {
-            RunOnUi(delegate
-            {
-                EntryPlanDraft safe = draft ?? EntryPlanDraft.Default();
-                if (entryTypeSelect != null) SetComboPlaceholder(entryTypeSelect, NullToDash(safe.EntryType));
-                if (entryQtyBox != null) entryQtyBox.Text = QuantityToText(safe.Quantity);
-                if (entrySizingSelect != null) SetComboPlaceholder(entrySizingSelect, NullToDash(safe.SizingMode));
-                if (entryUnitSelect != null) SetComboPlaceholder(entryUnitSelect, NullToDash(safe.Unit));
-                if (entryStopBox != null) entryStopBox.Text = NullToDash(safe.Stop);
-                if (entryTargetBox != null) entryTargetBox.Text = NullToDash(safe.Target);
-            });
-        }
-
-        // Phase 2 preview model mutator. It summarizes draft targets in the TAKES card
-        // and mirrors the same summary in ACTIVE POSITION / Targets as a draft preview.
-        public void SetTakeTargetsDraft(TakeTargetDraft[] targets)
-        {
-            RunOnUi(delegate
-            {
-                string summary = BuildTargetsSummary(targets);
-                if (takesEmptyHint != null)
-                {
-                    takesEmptyHint.Text = string.IsNullOrEmpty(summary) ? "(no targets defined)" : summary;
-                    takesEmptyHint.FontStyle = string.IsNullOrEmpty(summary) ? FontStyles.Italic : FontStyles.Normal;
-                }
-                if (activePosTargetsValue != null) activePosTargetsValue.Text = NullToDash(summary);
-            });
-        }
-
-        // Phase 2 preview model mutator. It updates disabled STOP/ENTRY labels only.
-        public void SetStopDraft(StopDraft draft)
-        {
-            RunOnUi(delegate
-            {
-                string current = draft == null ? null : draft.Current;
-                if (stopCurrentValue != null) stopCurrentValue.Text = NullToDash(current);
-                if (entryStopBox != null) entryStopBox.Text = NullToDash(current);
-                if (activePosStopValue != null) activePosStopValue.Text = NullToDash(current);
-            });
-        }
-
-        // Phase 2 preview model mutator. It updates the protection summary only.
-        public void SetProtectionDraft(ProtectionDraft draft)
-        {
-            RunOnUi(delegate
-            {
-                string summary = BuildProtectionSummary(draft);
-                if (activePosProtectionValue != null) activePosProtectionValue.Text = NullToDash(summary);
-            });
-        }
-
-        // Phase 2 preview model mutator. It updates disabled RISK fields only.
-        public void SetRiskModeDraft(RiskModeDraft draft)
-        {
-            RunOnUi(delegate
-            {
-                RiskModeDraft safe = draft ?? RiskModeDraft.Alert();
-                if (riskModeSelect != null) SetComboPlaceholder(riskModeSelect, NullToDash(safe.Mode));
-                if (riskDailyLimitValue != null) riskDailyLimitValue.Text = NullToDash(safe.DailyLimit);
-                if (riskStatusValue != null) riskStatusValue.Text = NullToDash(safe.Status);
-                if (riskBlockStatusValue != null) riskBlockStatusValue.Text = NullToDash(safe.BlockStatus);
-            });
-        }
-
-        // Read-only PnL/protection labels for the Active Position card. Empty/null becomes "-".
         public void SetActivePositionPnL(string pnlTicks, string pnlPoints, string pnlPercent, string pnlCash)
         {
             RunOnUi(delegate
@@ -379,13 +324,86 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             });
         }
 
-        // Sets the disabled strategy combobox's preview label. Wiring real strategies is
-        // a Phase 2 task; for now this just lets the host show "default" or a chosen name.
         public void SetStrategyName(string strategyName)
         {
             RunOnUi(delegate
             {
                 if (strategySelect != null) SetComboPlaceholder(strategySelect, NullToDash(strategyName));
+            });
+        }
+
+        public void SetStrategyDraft(StrategyDraft draft)
+        {
+            RunOnUi(delegate
+            {
+                if (strategySelect != null)
+                    SetComboPlaceholder(strategySelect, NullToDash(draft == null ? null : draft.Name));
+                if (draft == null) return;
+                SetEntryPlanDraft(draft.DefaultEntryPlan);
+                SetStopDraft(draft.DefaultStop);
+                SetTakeTargetsDraft(draft.DefaultTargets);
+                SetProtectionDraft(draft.DefaultProtection);
+                SetRiskModeDraft(draft.DefaultRiskMode);
+            });
+        }
+
+        public void SetEntryPlanDraft(EntryPlanDraft draft)
+        {
+            RunOnUi(delegate
+            {
+                EntryPlanDraft safe = draft ?? EntryPlanDraft.Default();
+                if (orderTypeCombo != null) SetComboPlaceholder(orderTypeCombo, NullToDash(safe.EntryType));
+                if (qtyBox != null) qtyBox.Text = QuantityToText(safe.Quantity);
+                if (entrySizingSelect != null) SetComboPlaceholder(entrySizingSelect, NullToDash(safe.SizingMode));
+                if (entryUnitSelect != null) SetComboPlaceholder(entryUnitSelect, NullToDash(safe.Unit));
+                if (entryStopBox != null) entryStopBox.Text = NullToDash(safe.Stop);
+                if (entryTargetBox != null) entryTargetBox.Text = NullToDash(safe.Target);
+            });
+        }
+
+        public void SetTakeTargetsDraft(TakeTargetDraft[] targets)
+        {
+            RunOnUi(delegate
+            {
+                string summary = BuildTargetsSummary(targets);
+                if (takesEmptyHint != null)
+                {
+                    takesEmptyHint.Text = string.IsNullOrEmpty(summary) ? "(no targets defined)" : summary;
+                    takesEmptyHint.FontStyle = string.IsNullOrEmpty(summary) ? FontStyles.Italic : FontStyles.Normal;
+                }
+                if (activePosTargetsValue != null) activePosTargetsValue.Text = NullToDash(summary);
+            });
+        }
+
+        public void SetStopDraft(StopDraft draft)
+        {
+            RunOnUi(delegate
+            {
+                string current = draft == null ? null : draft.Current;
+                if (stopCurrentValue != null) stopCurrentValue.Text = NullToDash(current);
+                if (entryStopBox != null) entryStopBox.Text = NullToDash(current);
+                if (activePosStopValue != null) activePosStopValue.Text = NullToDash(current);
+            });
+        }
+
+        public void SetProtectionDraft(ProtectionDraft draft)
+        {
+            RunOnUi(delegate
+            {
+                string summary = BuildProtectionSummary(draft);
+                if (activePosProtectionValue != null) activePosProtectionValue.Text = NullToDash(summary);
+            });
+        }
+
+        public void SetRiskModeDraft(RiskModeDraft draft)
+        {
+            RunOnUi(delegate
+            {
+                RiskModeDraft safe = draft ?? RiskModeDraft.Alert();
+                if (riskModeSelect != null) SetComboPlaceholder(riskModeSelect, NullToDash(safe.Mode));
+                if (riskDailyLimitValue != null) riskDailyLimitValue.Text = NullToDash(safe.DailyLimit);
+                if (riskStatusValue != null) riskStatusValue.Text = NullToDash(safe.Status);
+                if (riskBlockStatusValue != null) riskBlockStatusValue.Text = NullToDash(safe.BlockStatus);
             });
         }
 
@@ -395,7 +413,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             {
                 ApplyVisibility(strategyCard, sections.ShowStrategy);
                 ApplyVisibility(entryCard, sections.ShowEntry);
-                ApplyVisibility(activePositionCard, sections.ShowActivePosition);
+                ApplyVisibility(activePosCard, sections.ShowActivePosition);
                 ApplyVisibility(takesCard, sections.ShowTakes);
                 ApplyVisibility(stopCard, sections.ShowStop);
                 ApplyVisibility(protectionCard, sections.ShowProtection);
@@ -409,9 +427,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         {
             RunOnUi(delegate
             {
-                if (connectionDot != null) connectionDot.Fill = EssencialChartGuardTheme.AccentDotIdle;
-                if (modeText != null) modeText.Text = "Observer";
-                if (accountInstrumentText != null) accountInstrumentText.Text = "? / ?";
+                if (connDot != null) connDot.Fill = EssencialChartGuardTheme.AccentDotIdle;
+                if (headerSubtitle != null) headerSubtitle.Text = "—";
 
                 if (summaryPositionText != null)
                 {
@@ -422,20 +439,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 if (summaryAvgText != null) summaryAvgText.Text = "avg -";
                 if (summaryWorkingOrdersText != null) summaryWorkingOrdersText.Text = "wo -";
 
-                if (strategySelect != null) SetComboPlaceholder(strategySelect, "default");
-                if (entryTypeSelect != null) SetComboPlaceholder(entryTypeSelect, "Market");
-                if (entryQtyBox != null) entryQtyBox.Text = "1";
-                if (entrySizingSelect != null) SetComboPlaceholder(entrySizingSelect, "Fixed");
-                if (entryUnitSelect != null) SetComboPlaceholder(entryUnitSelect, "Ticks");
-                if (entryStopBox != null) entryStopBox.Text = "-";
-                if (entryTargetBox != null) entryTargetBox.Text = "-";
-                if (takesEmptyHint != null)
-                {
-                    takesEmptyHint.Text = "(no targets defined)";
-                    takesEmptyHint.FontStyle = FontStyles.Italic;
-                }
-                if (stopCurrentValue != null) stopCurrentValue.Text = "-";
-                if (riskModeSelect != null) SetComboPlaceholder(riskModeSelect, "Alert");
+                if (activePosHeader != null) activePosHeader.Text = "(sem posição ativa)";
+                if (activePosPnL != null) activePosPnL.Text = " ";
 
                 if (activePosDirectionValue != null)
                 {
@@ -459,6 +464,11 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 if (bridgeDot != null) bridgeDot.Fill = EssencialChartGuardTheme.AccentDotIdle;
                 if (bridgeText != null) bridgeText.Text = "not subscribed";
 
+                if (saldoValue != null) saldoValue.Text = "—";
+                if (quebraEmValue != null) quebraEmValue.Text = "—";
+                if (pctUsedValue != null) pctUsedValue.Text = "—";
+                if (metaProgressText != null) metaProgressText.Text = "Meta diária: —";
+
                 if (riskDailyLimitValue != null) riskDailyLimitValue.Text = "-";
                 if (riskStatusValue != null) riskStatusValue.Text = "no risk data yet";
                 if (riskBlockStatusValue != null) riskBlockStatusValue.Text = "-";
@@ -466,93 +476,186 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 if (sessionTradesValue != null) sessionTradesValue.Text = "-";
                 if (sessionPnLValue != null) sessionPnLValue.Text = "-";
                 if (sessionTimeValue != null) sessionTimeValue.Text = "no session data yet";
+
+                if (takesList != null) RebuildTakesPlaceholder();
+                if (stopChipsHost != null) stopChipsHost.Children.Clear();
+                if (stopCurrentValue != null) stopCurrentValue.Text = "-";
+                if (takesEmptyHint != null)
+                {
+                    takesEmptyHint.Text = "(no targets defined)";
+                    takesEmptyHint.FontStyle = FontStyles.Italic;
+                }
             });
         }
 
-        // ============================================================================
-        // Layout builders
-        // ============================================================================
-
-        private FrameworkElement BuildHeader()
+        // Toast overlay public API. Visual-only; never wired to a command path
+        // in this build. Kept for future phases.
+        public void ShowToast(string message, ToastKind kind = ToastKind.Info)
         {
-            // Row 0: brand (left) | dot+mode+gear (right)
-            // Row 1: account / instrument (monospace)
-            // Row 2: position chip · qty · avg · wo
-            Grid header = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            if (string.IsNullOrEmpty(message)) return;
+            RunOnUi(delegate
+            {
+                if (toastHost == null || toastText == null) return;
+                toastText.Text = message;
+                switch (kind)
+                {
+                    case ToastKind.Warn:
+                        toastHost.BorderBrush = EssencialChartGuardTheme.AccentWarn;
+                        toastText.Foreground = EssencialChartGuardTheme.AccentWarn;
+                        break;
+                    case ToastKind.Error:
+                        toastHost.BorderBrush = EssencialChartGuardTheme.AccentDanger;
+                        toastText.Foreground = EssencialChartGuardTheme.AccentDanger;
+                        break;
+                    default:
+                        toastHost.BorderBrush = EssencialChartGuardTheme.Gold;
+                        toastText.Foreground = EssencialChartGuardTheme.TextPrimary;
+                        break;
+                }
+                toastHost.Visibility = Visibility.Visible;
+                if (toastTimer != null)
+                {
+                    toastTimer.Stop();
+                    toastTimer.Start();
+                }
+            });
+        }
 
-            Grid topRow = new Grid();
-            topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        // =====================================================================
+        // Layout (mirrors the legacy panel; no event handlers attached)
+        // =====================================================================
 
-            brandText = new TextBlock
+        private void BuildUI()
+        {
+            DockPanel root = new DockPanel
+            {
+                LastChildFill = true,
+                Background = EssencialChartGuardTheme.BgRoot
+            };
+
+            Border header = BuildHeader();
+            DockPanel.SetDock(header, Dock.Top);
+            root.Children.Add(header);
+
+            ScrollViewer scroller = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Padding = new Thickness(EssencialChartGuardTheme.SpaceLg, 0,
+                                        EssencialChartGuardTheme.SpaceLg,
+                                        EssencialChartGuardTheme.SpaceLg)
+            };
+
+            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
+
+            // Bare card on top: Modo + Unidade + Conta + Instrumento + ATM
+            StackPanel topGroup = new StackPanel { Orientation = Orientation.Vertical };
+            topGroup.Children.Add(BuildModeBar());
+            topGroup.Children.Add(BuildAccountInstrumentBar());
+            topGroup.Children.Add(BuildAtmStrategyBar());
+            content.Children.Add(EssencialChartGuardTheme.MakeBareCard(topGroup));
+
+            // Header summary chip line lives just below the bare card so the
+            // observed Position/qty/avg/wo are easy to read. Keeps the host's
+            // SetObservedState wiring identical.
+            content.Children.Add(BuildHeaderSummaryRow());
+
+            content.Children.Add(BuildEntrySection());
+            content.Children.Add(BuildActivePositionSection());
+            content.Children.Add(BuildRiskSection());
+            content.Children.Add(BuildSessionSection());
+            content.Children.Add(BuildObservationCard());
+
+            scroller.Content = content;
+            root.Children.Add(scroller);
+
+            Grid layered = new Grid();
+            layered.Children.Add(root);
+            layered.Children.Add(BuildToastOverlay());
+
+            Content = layered;
+        }
+
+        private Border BuildHeader()
+        {
+            Grid grid = new Grid
+            {
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceMd, EssencialChartGuardTheme.SpaceSm,
+                                        EssencialChartGuardTheme.SpaceMd, EssencialChartGuardTheme.SpaceSm)
+            };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            connDot = new Ellipse
+            {
+                Width = 9,
+                Height = 9,
+                Fill = EssencialChartGuardTheme.AccentDotIdle,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceSm, 0),
+                ToolTip = EssencialChartGuardTheme.WrapTooltip("Status da conexão / modo de operação.")
+            };
+            ToolTipService.SetInitialShowDelay(connDot, 350);
+            Grid.SetColumn(connDot, 0);
+            grid.Children.Add(connDot);
+
+            StackPanel titleStack = new StackPanel { Orientation = Orientation.Vertical };
+            headerTitle = new TextBlock
             {
                 Text = "Essencial ChartGuard",
-                Foreground = EssencialChartGuardTheme.TextPrimary,
                 FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeBrand,
-                FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = "Essencial ChartGuard side panel — read-only preview of the final operational layout."
+                FontSize = EssencialChartGuardTheme.FontSizeTitle,
+                FontWeight = FontWeights.Bold,
+                Foreground = EssencialChartGuardTheme.Gold
             };
-            Grid.SetColumn(brandText, 0);
-            topRow.Children.Add(brandText);
-
-            StackPanel right = new StackPanel
+            headerSubtitle = new TextBlock
             {
-                Orientation = Orientation.Horizontal,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            connectionDot = EssencialChartGuardTheme.CreateStatusDot(EssencialChartGuardTheme.AccentDotIdle);
-            connectionDot.Margin = new Thickness(0, 0, 6, 0);
-            connectionDot.ToolTip = "Connection / mode status. Green = sim/playback observer, amber = non-sim observer, red = error, gray = idle. Read-only.";
-            right.Children.Add(connectionDot);
-
-            modeText = new TextBlock
-            {
-                Text = "Observer",
-                Foreground = EssencialChartGuardTheme.TextSecondary,
+                Text = "—",
                 FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeSubtitle,
-                VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = "Operating mode. The panel is always Observer in this build."
+                FontSize = EssencialChartGuardTheme.FontSizeSmall,
+                Foreground = EssencialChartGuardTheme.TextSecondary
             };
-            right.Children.Add(modeText);
+            titleStack.Children.Add(headerTitle);
+            titleStack.Children.Add(headerSubtitle);
+            Grid.SetColumn(titleStack, 1);
+            grid.Children.Add(titleStack);
 
-            settingsIconButton = BuildPlaceholderButton(
-                "⚙",
-                EssencialChartGuardTheme.TextSecondary,
-                "Settings (preview / disabled). Show/hide sections, units, default sizing — coming in a later phase.");
-            settingsIconButton.MinWidth = 28;
-            settingsIconButton.Padding = new Thickness(6, 2, 6, 2);
-            settingsIconButton.Margin = new Thickness(8, 0, 0, 0);
-            right.Children.Add(settingsIconButton);
+            warnButton = MakeIconButton("⚠",
+                "Aviso. Visual reservado; nenhuma ação está ligada nesta versão.");
+            warnButton.Foreground = EssencialChartGuardTheme.AccentWarn;
+            warnButton.Visibility = Visibility.Collapsed;
+            warnButton.IsEnabled = false;
+            Grid.SetColumn(warnButton, 2);
+            grid.Children.Add(warnButton);
 
-            Grid.SetColumn(right, 1);
-            topRow.Children.Add(right);
-            Grid.SetRow(topRow, 0);
-            header.Children.Add(topRow);
+            settingsButton = MakeGoldIconButton("⚙",
+                "Configurações (preview / disabled). Não está ligada nesta versão.");
+            settingsButton.IsEnabled = false;
+            Grid.SetColumn(settingsButton, 3);
+            grid.Children.Add(settingsButton);
 
-            accountInstrumentText = new TextBlock
+            return new Border
             {
-                Text = "? / ?",
-                Foreground = EssencialChartGuardTheme.TextMuted,
-                FontFamily = EssencialChartGuardTheme.FontMono,
-                FontSize = EssencialChartGuardTheme.FontSizeSubtitle,
-                Margin = new Thickness(0, 4, 0, 0),
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                ToolTip = "Account / chart instrument the panel is observing. Read-only."
+                Background = EssencialChartGuardTheme.BgSurface,
+                BorderBrush = EssencialChartGuardTheme.GoldDim,
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Child = grid
             };
-            Grid.SetRow(accountInstrumentText, 1);
-            header.Children.Add(accountInstrumentText);
+        }
 
+        // Compact summary row carried from the previous panel: one-line
+        // "<Position> · qty <n> · avg <price> · wo <n>" so the observed
+        // state is glanceable.
+        private FrameworkElement BuildHeaderSummaryRow()
+        {
             StackPanel summary = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, 6, 0, 0)
+                Margin = new Thickness(0, EssencialChartGuardTheme.SpaceSm, 0, EssencialChartGuardTheme.SpaceSm)
             };
+
             summaryPositionText = new TextBlock
             {
                 Text = "-",
@@ -560,30 +663,26 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 FontFamily = EssencialChartGuardTheme.FontUi,
                 FontSize = EssencialChartGuardTheme.FontSizeValue,
                 FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = "Observed position direction (Long / Short / Flat / Unknown)."
+                VerticalAlignment = VerticalAlignment.Center
             };
             summary.Children.Add(summaryPositionText);
             summary.Children.Add(BuildHeaderSeparator());
 
-            summaryQtyText = BuildHeaderChip("qty -", "Observed absolute net quantity.");
+            summaryQtyText = BuildHeaderChip("qty -");
             summary.Children.Add(summaryQtyText);
             summary.Children.Add(BuildHeaderSeparator());
 
-            summaryAvgText = BuildHeaderChip("avg -", "Observed average / last fill price.");
+            summaryAvgText = BuildHeaderChip("avg -");
             summary.Children.Add(summaryAvgText);
             summary.Children.Add(BuildHeaderSeparator());
 
-            summaryWorkingOrdersText = BuildHeaderChip("wo -", "Observed working orders for this account/instrument.");
+            summaryWorkingOrdersText = BuildHeaderChip("wo -");
             summary.Children.Add(summaryWorkingOrdersText);
 
-            Grid.SetRow(summary, 2);
-            header.Children.Add(summary);
-
-            return header;
+            return summary;
         }
 
-        private static TextBlock BuildHeaderChip(string text, string tooltip)
+        private static TextBlock BuildHeaderChip(string text)
         {
             return new TextBlock
             {
@@ -591,8 +690,7 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 Foreground = EssencialChartGuardTheme.TextPrimary,
                 FontFamily = EssencialChartGuardTheme.FontMono,
                 FontSize = EssencialChartGuardTheme.FontSizeLabel,
-                VerticalAlignment = VerticalAlignment.Center,
-                ToolTip = tooltip
+                VerticalAlignment = VerticalAlignment.Center
             };
         }
 
@@ -608,369 +706,720 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             };
         }
 
-        // STRATEGY (disabled). Combobox + small action buttons for create/edit/duplicate/delete.
-        // Wiring strategies to real config is a Phase 2 task. Until then everything is inert.
-        private FrameworkElement BuildStrategyCard()
+        private Border BuildModeBar()
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            card.Background = EssencialChartGuardTheme.BackgroundDisabled;
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
+            Grid g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Strategy"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
+            StackPanel modeCol = MakeFieldColumn("Modo");
+            modeCombo = EssencialChartGuardTheme.MakeCombo(
+                "Preset operacional. Visual reservado; ainda não muda comportamento.");
+            modeCombo.Items.Add("Apertado");
+            modeCombo.Items.Add("Médio");
+            modeCombo.Items.Add("Longo");
+            modeCombo.Items.Add("Swing");
+            modeCombo.SelectedIndex = 0;
+            DisableInput(modeCombo);
+            modeCol.Children.Add(modeCombo);
+            Grid.SetColumn(modeCol, 0);
+            g.Children.Add(modeCol);
 
-            Grid row = new Grid();
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            StackPanel unitCol = MakeFieldColumn("Unidade");
+            unitCombo = EssencialChartGuardTheme.MakeCombo(
+                "Como exibir distâncias (ticks / pontos / moeda). Preview / disabled.");
+            unitCombo.Items.Add("Ticks");
+            unitCombo.Items.Add("Pontos");
+            unitCombo.Items.Add("Moeda");
+            unitCombo.SelectedIndex = 0;
+            DisableInput(unitCombo);
+            unitCol.Children.Add(unitCombo);
+            Grid.SetColumn(unitCol, 1);
+            g.Children.Add(unitCol);
 
-            strategySelect = BuildPlaceholderCombo(
-                "default",
-                "Strategy / mode selector (preview / disabled). A future iteration will let you create, save and select named strategies with their own defaults.");
-            Grid.SetColumn(strategySelect, 0);
-            row.Children.Add(strategySelect);
-
-            strategyAddButton = BuildIconButton("+", EssencialChartGuardTheme.AccentGold,
-                "Create strategy (preview / disabled). Will let you save current entry/stop/target/sizing defaults under a name.");
-            Grid.SetColumn(strategyAddButton, 1);
-            row.Children.Add(strategyAddButton);
-
-            strategyEditButton = BuildIconButton("✎", EssencialChartGuardTheme.TextSecondary,
-                "Edit strategy (preview / disabled). Will open the selected strategy for editing.");
-            Grid.SetColumn(strategyEditButton, 2);
-            row.Children.Add(strategyEditButton);
-
-            strategyDuplicateButton = BuildIconButton("❏", EssencialChartGuardTheme.TextSecondary,
-                "Duplicate strategy (preview / disabled). Will copy the selected strategy under a new name.");
-            Grid.SetColumn(strategyDuplicateButton, 3);
-            row.Children.Add(strategyDuplicateButton);
-
-            strategyDeleteButton = BuildIconButton("✕", EssencialChartGuardTheme.AccentRed,
-                "Delete strategy (preview / disabled). Will remove the selected strategy after confirmation.");
-            Grid.SetColumn(strategyDeleteButton, 4);
-            row.Children.Add(strategyDeleteButton);
-
-            content.Children.Add(row);
-            content.Children.Add(BuildPlaceholderFootnote(
-                "Read-only preview. Strategy persistence is not wired in this build."));
-
-            card.Child = content;
-            strategyCard = card;
-            return card;
+            return new Border { Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceSm), Child = g };
         }
 
-        // ENTRY (disabled). Type / Qty / Sizing / Unit / Stop / Target + Buy/Sell/Panic.
-        private FrameworkElement BuildEntryCard()
+        private Border BuildAccountInstrumentBar()
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            card.Background = EssencialChartGuardTheme.BackgroundDisabled;
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
+            Grid g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Entry"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
+            StackPanel accCol = MakeFieldColumn("Conta");
+            accountCombo = EssencialChartGuardTheme.MakeCombo(
+                "Conta detectada pelo host. Preview / disabled (a seleção real vem do indicator).");
+            DisableInput(accountCombo);
+            accCol.Children.Add(accountCombo);
+            Grid.SetColumn(accCol, 0);
+            g.Children.Add(accCol);
 
-            // Row 1: Type | Qty
-            Grid r1 = TwoColumnRow();
-            entryTypeSelect = BuildPlaceholderCombo("Market",
-                "Entry type (preview / disabled). Will choose between Market / Limit / Stop Market / Stop Limit.");
-            r1.Children.Add(WrapField("Type", entryTypeSelect, 0));
-            entryQtyBox = BuildPlaceholderTextBox("1",
-                "Quantity (preview / disabled). The number of contracts the entry will use.");
-            r1.Children.Add(WrapField("Qty", entryQtyBox, 1));
-            content.Children.Add(r1);
+            StackPanel instCol = MakeFieldColumn("Instrumento");
+            instrumentCombo = EssencialChartGuardTheme.MakeCombo(
+                "Instrumento detectado do chart. Preview / disabled.");
+            instrumentCombo.IsEditable = false;
+            DisableInput(instrumentCombo);
+            instCol.Children.Add(instrumentCombo);
+            Grid.SetColumn(instCol, 1);
+            g.Children.Add(instCol);
 
-            // Row 2: Sizing | Unit
-            Grid r2 = TwoColumnRow();
-            r2.Margin = new Thickness(0, 4, 0, 0);
-            entrySizingSelect = BuildPlaceholderCombo("Fixed",
-                "Sizing mode (preview / disabled). Fixed contracts, risk-based, or other future modes.");
-            r2.Children.Add(WrapField("Sizing", entrySizingSelect, 0));
-            entryUnitSelect = BuildPlaceholderCombo("Ticks",
-                "Stop/target unit (preview / disabled). Choose ticks, points or price.");
-            r2.Children.Add(WrapField("Unit", entryUnitSelect, 1));
-            content.Children.Add(r2);
-
-            // Row 3: Stop | Target
-            Grid r3 = TwoColumnRow();
-            r3.Margin = new Thickness(0, 4, 0, 0);
-            entryStopBox = BuildPlaceholderTextBox("-",
-                "Stop value (preview / disabled). Required by default for protected entries; configurable per strategy in the future.");
-            r3.Children.Add(WrapField("Stop", entryStopBox, 0));
-            entryTargetBox = BuildPlaceholderTextBox("-",
-                "Target value (preview / disabled). Optional; multiple targets will be supported via the Takes section.");
-            r3.Children.Add(WrapField("Target", entryTargetBox, 1));
-            content.Children.Add(r3);
-
-            // Big BUY / SELL row
-            Grid bs = new Grid { Margin = new Thickness(0, 10, 0, 0) };
-            bs.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            bs.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6, GridUnitType.Pixel) });
-            bs.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            entryBuyButton = BuildBigButton("BUY", EssencialChartGuardTheme.AccentGreen,
-                "Buy (preview / disabled). Will create a ProtectedEntryCommand and route it through TradeCommandService once Phase 4 is enabled.");
-            Grid.SetColumn(entryBuyButton, 0);
-            bs.Children.Add(entryBuyButton);
-
-            entrySellButton = BuildBigButton("SELL", EssencialChartGuardTheme.AccentRed,
-                "Sell (preview / disabled). Will create a ProtectedEntryCommand for short and route it through TradeCommandService once Phase 4 is enabled.");
-            Grid.SetColumn(entrySellButton, 2);
-            bs.Children.Add(entrySellButton);
-            content.Children.Add(bs);
-
-            // Panic row (full width)
-            entryPanicButton = BuildBigButton("PANIC", EssencialChartGuardTheme.AccentRed,
-                "Panic — flatten + cancel (preview / disabled). Will cancel live orders and flatten the open position for the selected account/instrument once the Flatten command route is enabled.");
-            entryPanicButton.Margin = new Thickness(0, 4, 0, 0);
-            content.Children.Add(entryPanicButton);
-
-            content.Children.Add(BuildPlaceholderFootnote(
-                "Read-only preview. Entry / panic routes are not wired in this build."));
-
-            card.Child = content;
-            entryCard = card;
-            return card;
+            return new Border { Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceSm), Child = g };
         }
 
-        // ACTIVE POSITION (read-only). Renders observed direction/qty/avg today, and reserves
-        // labelled rows for last fill, PnL ticks/points/percent/cash, working orders, stop,
-        // targets and protection state. PnL/protection rows stay "-" until a real source is
-        // wired through the host.
-        private FrameworkElement BuildActivePositionCard()
+        private Border BuildAtmStrategyBar()
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
+            Grid g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Active position"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
+            StackPanel atmCol = MakeFieldColumn("Estratégia");
+            atmCol.HorizontalAlignment = HorizontalAlignment.Stretch;
+            atmCol.Margin = new Thickness(0);
+            atmStrategyCombo = EssencialChartGuardTheme.MakeCombo(
+                "Estratégia (preview). Persistência e seleção real entram em fase futura.",
+                minWidth: 200);
+            atmStrategyCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
+            atmStrategyCombo.Items.Add("Personalizada");
+            atmStrategyCombo.SelectedIndex = 0;
+            DisableInput(atmStrategyCombo);
+            atmCol.Children.Add(atmStrategyCombo);
+            Grid.SetColumn(atmCol, 0);
+            Grid.SetColumnSpan(atmCol, 2);
+            g.Children.Add(atmCol);
 
-            content.Children.Add(BuildLabelValueRow("Direction", out activePosDirectionValue,
-                "Observed direction (Long / Short / Flat / Unknown)."));
-            content.Children.Add(BuildLabelValueRow("Qty", out activePosQtyValue,
-                "Observed absolute net quantity."));
-            content.Children.Add(BuildLabelValueRow("Entry / Avg", out activePosEntryValue,
-                "Observed average / entry price."));
-            content.Children.Add(BuildLabelValueRow("Last fill", out activePosLastFillValue,
-                "Last observed execution price for this account/instrument."));
-            content.Children.Add(BuildLabelValueRow("PnL ticks", out activePosPnLTicksValue,
-                "Open PnL in ticks (preview). Will be wired to a real PnL source in a later phase."));
-            content.Children.Add(BuildLabelValueRow("PnL points", out activePosPnLPointsValue,
-                "Open PnL in points (preview). Will be wired to a real PnL source in a later phase."));
-            content.Children.Add(BuildLabelValueRow("PnL %", out activePosPnLPercentValue,
-                "Open PnL in percent (preview). Will be wired to a real PnL source in a later phase."));
-            content.Children.Add(BuildLabelValueRow("PnL $", out activePosPnLCashValue,
-                "Open PnL in account currency (preview). Will be wired to a real PnL source in a later phase."));
-            content.Children.Add(BuildLabelValueRow("Working orders", out activePosWorkingOrdersValue,
-                "Number of working orders for this account/instrument (observed)."));
-            content.Children.Add(BuildLabelValueRow("Stop", out activePosStopValue,
-                "Active stop summary (preview). Will reflect the protective stop once the Protection route is wired."));
-            content.Children.Add(BuildLabelValueRow("Targets", out activePosTargetsValue,
-                "Active targets summary (preview). Will reflect take-profit orders once the Takes route is wired."));
-            content.Children.Add(BuildLabelValueRow("Protection", out activePosProtectionValue,
-                "Protection state summary (preview). Will reflect Breakeven / Lock R / Trail state once Phase 5 is enabled."));
+            // Strategy is the first card; expose the combobox to SetStrategyDraft.
+            strategySelect = atmStrategyCombo;
 
-            card.Child = content;
-            activePositionCard = card;
-            return card;
+            return new Border { Margin = new Thickness(0, 0, 0, 0), Child = g };
         }
 
-        // TAKES (disabled). List placeholder + add/edit/remove buttons.
-        private FrameworkElement BuildTakesCard()
+        private Border BuildEntrySection()
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            card.Background = EssencialChartGuardTheme.BackgroundDisabled;
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
+            StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
 
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Takes"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
+            // Top row: Tipo / @Preço (collapsed) / Qtd / Sizing %
+            Grid topRow = new Grid { Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceXs) };
+            topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            takesEmptyHint = new TextBlock
+            StackPanel tipoCol = MakeFieldColumn("Tipo");
+            orderTypeCombo = EssencialChartGuardTheme.MakeCombo(
+                "Tipo da ordem de entrada (Mercado / Limite). Preview / disabled.",
+                minWidth: 95);
+            orderTypeCombo.Items.Add("Mercado");
+            orderTypeCombo.Items.Add("Limite");
+            orderTypeCombo.SelectedIndex = 0;
+            DisableInput(orderTypeCombo);
+            tipoCol.Children.Add(orderTypeCombo);
+            Grid.SetColumn(tipoCol, 0);
+            topRow.Children.Add(tipoCol);
+
+            limitPriceRow = new StackPanel
             {
-                Text = "(no targets defined)",
-                Foreground = EssencialChartGuardTheme.TextMuted,
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeLabel,
-                FontStyle = FontStyles.Italic,
-                Margin = new Thickness(0, 0, 0, 6),
-                ToolTip = "Future list of take-profit targets. Read-only in this build."
+                Orientation = Orientation.Vertical,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceSm, 0, 0, 0),
+                Visibility = Visibility.Collapsed
             };
-            content.Children.Add(takesEmptyHint);
+            TextBlock priceLabel = EssencialChartGuardTheme.MakeLabel("@ Preço", "field");
+            priceLabel.FontSize = EssencialChartGuardTheme.FontSizeSmall;
+            priceLabel.Margin = new Thickness(0, 0, 0, 1);
+            limitPriceRow.Children.Add(priceLabel);
+            limitPriceBox = EssencialChartGuardTheme.MakeNumberBox("",
+                "Preço limite (preview / disabled).", width: 90);
+            DisableInput(limitPriceBox);
+            limitPriceRow.Children.Add(limitPriceBox);
+            Grid.SetColumn(limitPriceRow, 1);
+            topRow.Children.Add(limitPriceRow);
 
-            Grid btnRow = ThreeColumnRow();
-            takesAddButton = BuildPlaceholderButton("+ Add target", EssencialChartGuardTheme.AccentGold,
-                "Add target (preview / disabled). Will append a take-profit target to the active plan via the command route.");
-            Grid.SetColumn(takesAddButton, 0);
-            btnRow.Children.Add(takesAddButton);
+            StackPanel qtyCol = MakeFieldColumn("Qtd");
+            qtyCol.Margin = new Thickness(EssencialChartGuardTheme.SpaceLg, 0, 0, 0);
+            StackPanel qtySpinner = EssencialChartGuardTheme.MakeNumericUpDown(
+                defaultText: "1",
+                tooltip: "Quantidade de contratos. Preview / disabled.",
+                inputBox: out qtyBox,
+                inputWidth: 44, step: 1, min: 1, max: 9999);
+            DisableInput(qtyBox);
+            DisableChildren(qtySpinner);
+            qtyCol.Children.Add(qtySpinner);
+            Grid.SetColumn(qtyCol, 2);
+            topRow.Children.Add(qtyCol);
 
-            takesEditButton = BuildPlaceholderButton("Edit", EssencialChartGuardTheme.TextSecondary,
-                "Edit target (preview / disabled). Will edit the selected target via the command route.");
-            Grid.SetColumn(takesEditButton, 2);
-            btnRow.Children.Add(takesEditButton);
+            StackPanel sizingCol = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceLg, 0, 0, 0)
+            };
+            TextBlock spacer = new TextBlock
+            {
+                Text = " ",
+                FontSize = EssencialChartGuardTheme.FontSizeSmall,
+                Margin = new Thickness(0, 0, 0, 3)
+            };
+            sizingCol.Children.Add(spacer);
 
-            takesRemoveButton = BuildPlaceholderButton("Remove", EssencialChartGuardTheme.AccentRed,
-                "Remove target (preview / disabled). Will remove the selected target via the command route.");
-            Grid.SetColumn(takesRemoveButton, 4);
-            btnRow.Children.Add(takesRemoveButton);
+            Grid sizingRow = new Grid
+            {
+                MinHeight = 28,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            sizingRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            sizingRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            content.Children.Add(btnRow);
-            content.Children.Add(BuildPlaceholderFootnote(
-                "Read-only preview. Takes route is not wired in this build."));
+            usePosSizingCheck = new CheckBox
+            {
+                Content = " Sizing %",
+                Foreground = EssencialChartGuardTheme.Gold,
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = EssencialChartGuardTheme.FontSizeSmall,
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceMd, 0)
+            };
+            usePosSizingCheck.ToolTip = EssencialChartGuardTheme.WrapTooltip(
+                "Sizing por % de risco. Preview / disabled.");
+            ToolTipService.SetInitialShowDelay(usePosSizingCheck, 350);
+            DisableInput(usePosSizingCheck);
+            Grid.SetColumn(usePosSizingCheck, 0);
+            sizingRow.Children.Add(usePosSizingCheck);
 
-            card.Child = content;
-            takesCard = card;
-            return card;
+            riscoPctBox = EssencialChartGuardTheme.MakeNumberBox("0,5",
+                "Risco por trade (preview / disabled).", width: 50);
+            riscoPctBox.VerticalAlignment = VerticalAlignment.Center;
+            DisableInput(riscoPctBox);
+            Grid.SetColumn(riscoPctBox, 1);
+            sizingRow.Children.Add(riscoPctBox);
+            sizingCol.Children.Add(sizingRow);
+            Grid.SetColumn(sizingCol, 3);
+            topRow.Children.Add(sizingCol);
+
+            sp.Children.Add(topRow);
+
+            sizingResultText = EssencialChartGuardTheme.MakeLabel("(sizing manual: usando Qtd direta)", "muted");
+            sizingResultText.FontSize = EssencialChartGuardTheme.FontSizeSmall;
+            sizingResultText.FontStyle = FontStyles.Italic;
+            sizingResultText.Margin = new Thickness(0, EssencialChartGuardTheme.SpaceXs, 0, EssencialChartGuardTheme.SpaceSm);
+            sp.Children.Add(sizingResultText);
+
+            // BUY / SELL big buttons
+            Grid btnRow = new Grid { Margin = new Thickness(0, EssencialChartGuardTheme.SpaceXs, 0, EssencialChartGuardTheme.SpaceMd) };
+            btnRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            btnRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceMd) });
+            btnRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            buyButton = EssencialChartGuardTheme.MakeButton("▲ COMPRAR", ButtonRole.Buy,
+                "COMPRAR (preview / disabled). A rota de envio entra em fase futura via TradeCommandService.");
+            buyButton.MinHeight = 54;
+            buyButton.FontSize = EssencialChartGuardTheme.FontSizeButtonBig;
+            DisableInput(buyButton);
+            Grid.SetColumn(buyButton, 0);
+            btnRow.Children.Add(buyButton);
+
+            sellButton = EssencialChartGuardTheme.MakeButton("▼ VENDER", ButtonRole.Sell,
+                "VENDER (preview / disabled). A rota de envio entra em fase futura via TradeCommandService.");
+            sellButton.MinHeight = 54;
+            sellButton.FontSize = EssencialChartGuardTheme.FontSizeButtonBig;
+            DisableInput(sellButton);
+            Grid.SetColumn(sellButton, 2);
+            btnRow.Children.Add(sellButton);
+
+            sp.Children.Add(btnRow);
+
+            // PÂNICO
+            panicButton = EssencialChartGuardTheme.MakeButton(string.Empty, ButtonRole.Danger,
+                "PÂNICO — cancelar tudo + flatten (preview / disabled). Visual reservado.");
+            TextBlock panicLabel = new TextBlock
+            {
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = EssencialChartGuardTheme.FontSizeButton,
+                FontWeight = FontWeights.Bold,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            panicLabel.Inlines.Add(new System.Windows.Documents.Run("⚠")
+            { Foreground = EssencialChartGuardTheme.Gold, FontSize = 16 });
+            panicLabel.Inlines.Add(new System.Windows.Documents.Run("  PÂNICO — CANCELAR TUDO  ")
+            { Foreground = EssencialChartGuardTheme.TextPrimary });
+            panicButton.Content = panicLabel;
+            panicButton.MinHeight = 40;
+            panicButton.Margin = new Thickness(0, EssencialChartGuardTheme.SpaceMd, 0, EssencialChartGuardTheme.SpaceXs);
+            DisableInput(panicButton);
+            sp.Children.Add(panicButton);
+
+            // Aliases the host already populates via SetEntryPlanDraft etc.
+            entryTypeSelect = orderTypeCombo;
+            entryQtyBox = qtyBox;
+            entrySizingSelect = null; // sizing comes from a checkbox, kept null
+            entryUnitSelect = unitCombo;
+            // entryStopBox / entryTargetBox set by the active-position chips path below.
+
+            entryCard = EssencialChartGuardTheme.MakeSection("Entrada", sp,
+                "Disparo de novo trade. Tudo aqui é preview / disabled nesta versão.");
+            return entryCard;
         }
 
-        // STOP (disabled). Current stop placeholder + edit button.
-        private FrameworkElement BuildStopCard()
+        private Border BuildActivePositionSection()
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            card.Background = EssencialChartGuardTheme.BackgroundDisabled;
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
+            StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
 
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Stop"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
+            activePosHeader = new TextBlock
+            {
+                Text = "(sem posição ativa)",
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = EssencialChartGuardTheme.FontSizeBody,
+                Foreground = EssencialChartGuardTheme.TextMuted,
+                Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceXs)
+            };
+            sp.Children.Add(activePosHeader);
 
-            content.Children.Add(BuildLabelValueRow("Current", out stopCurrentValue,
-                "Current protective stop (preview). Will display the active stop price/distance once the Protection route is wired."));
+            activePosPnL = new TextBlock
+            {
+                Text = " ",
+                FontFamily = EssencialChartGuardTheme.FontMono,
+                FontSize = EssencialChartGuardTheme.FontSizeValue,
+                Foreground = EssencialChartGuardTheme.TextSecondary,
+                Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceSm)
+            };
+            sp.Children.Add(activePosPnL);
 
-            stopEditButton = BuildPlaceholderButton("Edit stop", EssencialChartGuardTheme.AccentBlue,
-                "Edit stop (preview / disabled). Will move the protective stop via ProtectionService once Phase 5 is enabled.");
-            stopEditButton.Margin = new Thickness(0, 6, 0, 0);
-            content.Children.Add(stopEditButton);
+            // Detailed observed-state rows (mirror what the host already pushes)
+            sp.Children.Add(BuildLabelValueRow("Direction", out activePosDirectionValue));
+            sp.Children.Add(BuildLabelValueRow("Qty", out activePosQtyValue));
+            sp.Children.Add(BuildLabelValueRow("Entry / Avg", out activePosEntryValue));
+            sp.Children.Add(BuildLabelValueRow("Last fill", out activePosLastFillValue));
+            sp.Children.Add(BuildLabelValueRow("PnL ticks", out activePosPnLTicksValue));
+            sp.Children.Add(BuildLabelValueRow("PnL points", out activePosPnLPointsValue));
+            sp.Children.Add(BuildLabelValueRow("PnL %", out activePosPnLPercentValue));
+            sp.Children.Add(BuildLabelValueRow("PnL $", out activePosPnLCashValue));
+            sp.Children.Add(BuildLabelValueRow("Working orders", out activePosWorkingOrdersValue));
+            sp.Children.Add(BuildLabelValueRow("Stop", out activePosStopValue));
+            sp.Children.Add(BuildLabelValueRow("Targets", out activePosTargetsValue));
+            sp.Children.Add(BuildLabelValueRow("Protection", out activePosProtectionValue));
 
-            content.Children.Add(BuildPlaceholderFootnote(
-                "Read-only preview. Stop edit route is not wired in this build."));
+            // Takes inline chips row
+            Grid takesInline = BuildInlineChipsRow(
+                labelText: "Takes",
+                labelTooltip: "Alvos. Preview / disabled. Adicionar pelo + ainda não está ligado.",
+                inputAssign: tb => takeInputBox = tb,
+                addAssign: bt => addTakeButton = bt,
+                addTooltip: "Adicionar alvo (preview / disabled).",
+                chipsHost: out takesList);
+            sp.Children.Add(takesInline);
 
-            card.Child = content;
-            stopCard = card;
-            return card;
+            // Stop inline + trail combo on the same Grid
+            Grid stopRow = new Grid { Margin = new Thickness(0, EssencialChartGuardTheme.SpaceSm, 0, EssencialChartGuardTheme.SpaceSm) };
+            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
+            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
+            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
+            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            Grid stopInlineRow = BuildInlineChipsRow(
+                labelText: "Stop",
+                labelTooltip: "Stop loss. Preview / disabled.",
+                inputAssign: tb => stopInputBox = tb,
+                addAssign: bt => setStopButton = bt,
+                addTooltip: "Aplicar valor (preview / disabled).",
+                chipsHost: out WrapPanel stopChipsWrap);
+            stopChipsHost = stopChipsWrap;
+            stopValueText = new TextBlock { Text = "—" };
+            Grid.SetColumn(stopInlineRow, 0);
+            Grid.SetColumnSpan(stopInlineRow, 5);
+            stopRow.Children.Add(stopInlineRow);
+
+            StackPanel trailCol = MakeFieldColumn("Stop móvel");
+            trailCol.HorizontalAlignment = HorizontalAlignment.Stretch;
+            trailCol.Margin = new Thickness(0);
+            trailCombo = EssencialChartGuardTheme.MakeCombo(
+                "Trail / stop móvel (preview / disabled).", minWidth: 90);
+            trailCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
+            trailCombo.Items.Add("Off");
+            trailCombo.Items.Add("A cada 1pt");
+            trailCombo.Items.Add("A cada 5pts");
+            trailCombo.Items.Add("A cada 10pts");
+            trailCombo.SelectedIndex = 0;
+            DisableInput(trailCombo);
+            trailCol.Children.Add(trailCombo);
+            Grid.SetColumn(trailCol, 6);
+            stopRow.Children.Add(trailCol);
+            sp.Children.Add(stopRow);
+
+            // Lock R + BE row
+            Grid lockRow = new Grid { Margin = new Thickness(0, 3, 0, 0) };
+            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
+            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
+            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
+            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            lock1RBtn = EssencialChartGuardTheme.MakeButton("Travar 1R", ButtonRole.Secondary,
+                "Travar 1R (preview / disabled).");
+            lock1RBtn.MinHeight = 32;
+            DisableInput(lock1RBtn);
+            Grid.SetColumn(lock1RBtn, 0);
+            lockRow.Children.Add(lock1RBtn);
+
+            lock2RBtn = EssencialChartGuardTheme.MakeButton("Travar 2R", ButtonRole.Secondary,
+                "Travar 2R (preview / disabled).");
+            lock2RBtn.MinHeight = 32;
+            DisableInput(lock2RBtn);
+            Grid.SetColumn(lock2RBtn, 2);
+            lockRow.Children.Add(lock2RBtn);
+
+            lock3RBtn = EssencialChartGuardTheme.MakeButton("Travar 3R", ButtonRole.Secondary,
+                "Travar 3R (preview / disabled).");
+            lock3RBtn.MinHeight = 32;
+            DisableInput(lock3RBtn);
+            Grid.SetColumn(lock3RBtn, 4);
+            lockRow.Children.Add(lock3RBtn);
+
+            beBtn = EssencialChartGuardTheme.MakeButton("→ BE", ButtonRole.Info,
+                "Breakeven (preview / disabled).");
+            beBtn.MinHeight = 32;
+            DisableInput(beBtn);
+            Grid.SetColumn(beBtn, 6);
+            lockRow.Children.Add(beBtn);
+
+            sp.Children.Add(lockRow);
+
+            // Aliases used by the existing host mutators. Take/Stop visuals
+            // double as the entry-plan stop/target preview targets.
+            entryStopBox = stopInputBox;
+            entryTargetBox = takeInputBox;
+            takesEmptyHint = new TextBlock();   // placeholder so SetTakeTargetsDraft never NRE's
+            stopCurrentValue = stopValueText;
+            takesCard = null;                   // visibility flags map to activePosCard for now
+            stopCard = null;
+            protectionCard = null;
+            strategyCard = null;
+            riskModeSelect = null;              // risk-mode preview lives in the risk card below
+
+            activePosCard = EssencialChartGuardTheme.MakeSection("Posição ativa", sp,
+                "Aparece dados quando há posição aberta. Botões preview / disabled.");
+            return activePosCard;
         }
 
-        // PROTECTION (disabled). BE / Lock 1R / Lock 2R / Lock 3R / Trail.
-        private FrameworkElement BuildProtectionCard()
+        private Border BuildRiskSection()
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            card.Background = EssencialChartGuardTheme.BackgroundDisabled;
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
+            Grid g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.RowDefinitions.Add(new RowDefinition());
+            g.RowDefinitions.Add(new RowDefinition());
+            g.RowDefinitions.Add(new RowDefinition());
+            g.RowDefinitions.Add(new RowDefinition());
+            g.RowDefinitions.Add(new RowDefinition());
+            g.RowDefinitions.Add(new RowDefinition());
 
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Protection"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
+            StackPanel saldoCol = MakeMetricColumn("Saldo", "Saldo da conta (preview).");
+            saldoValue = MakeMetricValue("—");
+            saldoCol.Children.Add(saldoValue);
+            Grid.SetRow(saldoCol, 0); Grid.SetColumn(saldoCol, 0);
+            g.Children.Add(saldoCol);
 
-            Grid row1 = BuildButtonRow(
-                out protectionBeButton, "BE", EssencialChartGuardTheme.AccentBlue,
-                "Breakeven (preview / disabled). Will move the stop to entry price via ProtectionService once Phase 5 is enabled.",
-                out protectionLock1RButton, "Lock 1R", EssencialChartGuardTheme.AccentBlue,
-                "Lock 1R (preview / disabled). Will move the stop to +/- 1R based on initial risk via ProtectionService.");
-            content.Children.Add(row1);
+            StackPanel quebraCol = MakeMetricColumn("Quebra em",
+                "Saldo abaixo do qual a regra zera a conta (preview).");
+            quebraEmValue = MakeMetricValue("—");
+            quebraEmValue.Foreground = EssencialChartGuardTheme.AccentSell;
+            quebraCol.Children.Add(quebraEmValue);
+            Grid.SetRow(quebraCol, 0); Grid.SetColumn(quebraCol, 1);
+            g.Children.Add(quebraCol);
 
-            Grid row2 = BuildButtonRow(
-                out protectionLock2RButton, "Lock 2R", EssencialChartGuardTheme.AccentBlue,
-                "Lock 2R (preview / disabled). Will move the stop to +/- 2R based on initial risk via ProtectionService.",
-                out protectionLock3RButton, "Lock 3R", EssencialChartGuardTheme.AccentBlue,
-                "Lock 3R (preview / disabled). Will move the stop to +/- 3R based on initial risk via ProtectionService.");
-            row2.Margin = new Thickness(0, 4, 0, 0);
-            content.Children.Add(row2);
+            StackPanel pctCol = MakeMetricColumn("% comprometido",
+                "% do colchão até a Quebra (preview).");
+            pctUsedValue = MakeMetricValue("—");
+            pctCol.Children.Add(pctUsedValue);
+            Grid.SetRow(pctCol, 0); Grid.SetColumn(pctCol, 2);
+            g.Children.Add(pctCol);
 
-            protectionTrailButton = BuildPlaceholderButton("Trail", EssencialChartGuardTheme.AccentBlue,
-                "Trailing stop (preview / disabled). Will manage a trailing stop via ProtectionService once Phase 5 is enabled.");
-            protectionTrailButton.Margin = new Thickness(0, 4, 0, 0);
-            content.Children.Add(protectionTrailButton);
+            pctUsedBar = EssencialChartGuardTheme.MakeProgressBar(0, EssencialChartGuardTheme.RiskGreen, 6);
+            pctUsedBar.Margin = new Thickness(0, EssencialChartGuardTheme.SpaceSm, 0, EssencialChartGuardTheme.SpaceMd);
+            Grid.SetRow(pctUsedBar, 1); Grid.SetColumn(pctUsedBar, 0); Grid.SetColumnSpan(pctUsedBar, 3);
+            g.Children.Add(pctUsedBar);
 
-            content.Children.Add(BuildPlaceholderFootnote(
-                "Read-only preview. Protection route is not wired in this build."));
+            metaProgressText = EssencialChartGuardTheme.MakeLabel("Meta diária: —", "secondary");
+            metaProgressText.ToolTip = EssencialChartGuardTheme.WrapTooltip(
+                "Quanto você já fez do Daily Profit Cap (preview).");
+            ToolTipService.SetInitialShowDelay(metaProgressText, 350);
+            Grid.SetRow(metaProgressText, 2); Grid.SetColumn(metaProgressText, 0); Grid.SetColumnSpan(metaProgressText, 3);
+            g.Children.Add(metaProgressText);
 
-            card.Child = content;
-            protectionCard = card;
-            return card;
+            metaBar = EssencialChartGuardTheme.MakeProgressBar(0, EssencialChartGuardTheme.AccentInfo, 6);
+            metaBar.Margin = new Thickness(0, EssencialChartGuardTheme.SpaceXs, 0, 0);
+            Grid.SetRow(metaBar, 3); Grid.SetColumn(metaBar, 0); Grid.SetColumnSpan(metaBar, 3);
+            g.Children.Add(metaBar);
+
+            // Three labelled rows for the host's SetRiskMetrics
+            FrameworkElement r4 = BuildLabelValueRow("Daily limit", out riskDailyLimitValue);
+            Grid.SetRow(r4, 4); Grid.SetColumnSpan(r4, 3);
+            g.Children.Add(r4);
+            FrameworkElement r5 = BuildLabelValueRow("Status", out riskStatusValue);
+            Grid.SetRow(r5, 5); Grid.SetColumnSpan(r5, 3);
+            g.Children.Add(r5);
+            FrameworkElement r6 = BuildLabelValueRow("Block", out riskBlockStatusValue);
+            // Append below the grid via a wrapping stack so the row count stays right.
+            StackPanel riskOuter = new StackPanel { Orientation = Orientation.Vertical };
+            riskOuter.Children.Add(g);
+            riskOuter.Children.Add(r6);
+
+            riskCard = EssencialChartGuardTheme.MakeSection("Risco da conta", riskOuter,
+                "Status do drawdown / meta (preview). Sem persistência nesta versão.");
+            return riskCard;
         }
 
-        // RISK (read-only labels + disabled mode select for Alert/Block/Off).
-        private FrameworkElement BuildRiskCard()
+        private Border BuildSessionSection()
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
+            StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
+            sp.Children.Add(BuildLabelValueRow("Trades", out sessionTradesValue));
+            sp.Children.Add(BuildLabelValueRow("PnL", out sessionPnLValue));
+            sp.Children.Add(BuildLabelValueRow("Time", out sessionTimeValue));
+            sessionCard = EssencialChartGuardTheme.MakeSection("Sessão", sp,
+                "Resumo da sessão atual (preview).");
+            return sessionCard;
+        }
 
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Risk"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
+        private Border BuildObservationCard()
+        {
+            StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
+            sp.Children.Add(BuildDotRow("Snapshot", out snapshotDot, out snapshotText));
+            sp.Children.Add(BuildDotRow("Event bridge", out bridgeDot, out bridgeText));
+            observationCard = EssencialChartGuardTheme.MakeSection("Observation", sp,
+                "Estado do snapshot e do event bridge (read-only).");
+            return observationCard;
+        }
 
-            content.Children.Add(BuildLabelValueRow("Daily limit", out riskDailyLimitValue,
-                "Daily loss limit (preview). Will reflect the configured maximum daily loss for the account."));
-            content.Children.Add(BuildLabelValueRow("Status", out riskStatusValue,
-                "Risk status (preview). Will indicate whether new entries are allowed, alerted, or blocked."));
-            content.Children.Add(BuildLabelValueRow("Block", out riskBlockStatusValue,
-                "Block reason (preview). Will explain why new entries are blocked when the risk guard fires."));
+        private Border BuildToastOverlay()
+        {
+            toastText = new TextBlock
+            {
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = EssencialChartGuardTheme.FontSizeBody,
+                Foreground = EssencialChartGuardTheme.TextPrimary,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center
+            };
 
-            // Mode select: Alert / Block / Off — disabled placeholder.
-            Grid row = new Grid { Margin = new Thickness(0, 6, 0, 0) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            toastHost = new Border
+            {
+                Background = EssencialChartGuardTheme.BgSurface2,
+                BorderBrush = EssencialChartGuardTheme.Gold,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(EssencialChartGuardTheme.Radius),
+                Padding = new Thickness(EssencialChartGuardTheme.SpaceMd, EssencialChartGuardTheme.SpaceSm,
+                                        EssencialChartGuardTheme.SpaceMd, EssencialChartGuardTheme.SpaceSm),
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceLg, 64, EssencialChartGuardTheme.SpaceLg, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Top,
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false,
+                Child = toastText
+            };
 
-            TextBlock label = EssencialChartGuardTheme.CreateLabel("Mode");
+            toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            toastTimer.Tick += OnToastTick;
+
+            return toastHost;
+        }
+
+        // The toast tick is the only event handler on this control. It is a
+        // visual auto-dismiss timer; it does not touch any account, order or
+        // command. Kept as a named method so tooling can audit it easily.
+        private void OnToastTick(object sender, EventArgs e)
+        {
+            if (toastTimer != null) toastTimer.Stop();
+            if (toastHost != null) toastHost.Visibility = Visibility.Collapsed;
+        }
+
+        // =====================================================================
+        // Inline chips row + small builders
+        // =====================================================================
+
+        private Grid BuildInlineChipsRow(string labelText, string labelTooltip,
+            Action<TextBox> inputAssign, Action<Button> addAssign,
+            string addTooltip, out WrapPanel chipsHost)
+        {
+            Grid g = new Grid { Margin = new Thickness(0, 0, 0, EssencialChartGuardTheme.SpaceXs) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            TextBlock label = EssencialChartGuardTheme.MakeLabel(labelText, "field");
+            label.FontSize = EssencialChartGuardTheme.FontSizeSmall;
             label.VerticalAlignment = VerticalAlignment.Center;
+            label.MinWidth = 38;
+            label.Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceSm, 0);
+            if (!string.IsNullOrEmpty(labelTooltip))
+            {
+                label.ToolTip = EssencialChartGuardTheme.WrapTooltip(labelTooltip);
+                ToolTipService.SetInitialShowDelay(label, 350);
+                label.Cursor = Cursors.Help;
+            }
             Grid.SetColumn(label, 0);
-            row.Children.Add(label);
+            g.Children.Add(label);
 
-            riskModeSelect = BuildPlaceholderCombo("Alert",
-                "Risk mode (preview / disabled). Will let you choose between Alert (warn only), Block (refuse new entries), or Off.");
-            riskModeSelect.MinWidth = 110;
-            Grid.SetColumn(riskModeSelect, 1);
-            row.Children.Add(riskModeSelect);
-            content.Children.Add(row);
+            TextBox input = EssencialChartGuardTheme.MakeNumberBox(string.Empty,
+                "Distância na unidade selecionada (preview / disabled).", width: 60);
+            input.MinHeight = 26;
+            input.VerticalAlignment = VerticalAlignment.Center;
+            DisableInput(input);
+            Grid.SetColumn(input, 1);
+            g.Children.Add(input);
+            if (inputAssign != null) inputAssign(input);
 
-            content.Children.Add(BuildPlaceholderFootnote(
-                "Read-only preview. Risk mode is not wired in this build."));
+            Button addBtn = new Button
+            {
+                Content = "+",
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = 15,
+                FontWeight = FontWeights.Bold,
+                Foreground = EssencialChartGuardTheme.Gold,
+                Background = Brushes.Transparent,
+                BorderBrush = EssencialChartGuardTheme.GoldDim,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(0),
+                MinWidth = 26,
+                MinHeight = 26,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceXs, 0, 0, 0),
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                FocusVisualStyle = null,
+                Style = EssencialChartGuardTheme.MakeButtonStyle()
+            };
+            addBtn.ToolTip = EssencialChartGuardTheme.WrapTooltip(addTooltip);
+            ToolTipService.SetInitialShowDelay(addBtn, 350);
+            DisableInput(addBtn);
+            Grid.SetColumn(addBtn, 2);
+            g.Children.Add(addBtn);
+            if (addAssign != null) addAssign(addBtn);
 
-            card.Child = content;
-            riskCard = card;
-            return card;
+            chipsHost = new WrapPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceMd, 0, 0, 0)
+            };
+            Grid.SetColumn(chipsHost, 3);
+            g.Children.Add(chipsHost);
+
+            return g;
         }
 
-        private FrameworkElement BuildSessionCard()
+        private void RebuildTakesPlaceholder()
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
-
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Session"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
-
-            content.Children.Add(BuildLabelValueRow("Trades", out sessionTradesValue,
-                "Trades counted in the current session (preview)."));
-            content.Children.Add(BuildLabelValueRow("PnL", out sessionPnLValue,
-                "Realized + open PnL of the current session (preview)."));
-            content.Children.Add(BuildLabelValueRow("Time", out sessionTimeValue,
-                "Session time / state (preview)."));
-
-            card.Child = content;
-            sessionCard = card;
-            return card;
+            takesList.Children.Clear();
+            TextBlock empty = EssencialChartGuardTheme.MakeLabel("(nenhum take configurado)", "muted");
+            empty.FontSize = EssencialChartGuardTheme.FontSizeSmall;
+            empty.FontStyle = FontStyles.Italic;
+            empty.Margin = new Thickness(2, 4, 0, 4);
+            takesList.Children.Add(empty);
         }
 
-        private FrameworkElement BuildObservationCard()
+        private static Button MakeIconButton(string glyph, string tooltip)
         {
-            Border card = EssencialChartGuardTheme.CreateCard();
-            StackPanel content = new StackPanel { Orientation = Orientation.Vertical };
-
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionTitle("Observation"));
-            content.Children.Add(EssencialChartGuardTheme.CreateSectionUnderline());
-
-            content.Children.Add(BuildDotRow("Snapshot", out snapshotDot, out snapshotText,
-                "Initial position snapshot status. Read by the host from Account.Positions before subscribing to events."));
-            content.Children.Add(BuildDotRow("Event bridge", out bridgeDot, out bridgeText,
-                "Event bridge subscription status. Read-only stream of order/execution updates from NinjaTrader."));
-
-            card.Child = content;
-            observationCard = card;
-            return card;
+            Button b = new Button
+            {
+                Content = glyph,
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = 16,
+                Foreground = EssencialChartGuardTheme.TextSecondary,
+                Background = Brushes.Transparent,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(8, 4, 8, 4),
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+                FocusVisualStyle = null,
+                Style = EssencialChartGuardTheme.MakeButtonStyle()
+            };
+            b.ToolTip = EssencialChartGuardTheme.WrapTooltip(tooltip);
+            ToolTipService.SetInitialShowDelay(b, 350);
+            ToolTipService.SetShowDuration(b, 30000);
+            return b;
         }
 
-        // ============================================================================
-        // Small helpers
-        // ============================================================================
+        private static Button MakeGoldIconButton(string glyph, string tooltip)
+        {
+            Button b = new Button
+            {
+                Content = glyph,
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = 17,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = EssencialChartGuardTheme.GoldDim,
+                Background = Brushes.Transparent,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(8, 4, 8, 4),
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+                FocusVisualStyle = null,
+                Style = EssencialChartGuardTheme.MakeButtonStyle()
+            };
+            b.ToolTip = EssencialChartGuardTheme.WrapTooltip(tooltip);
+            ToolTipService.SetInitialShowDelay(b, 350);
+            ToolTipService.SetShowDuration(b, 30000);
+            return b;
+        }
 
-        private static FrameworkElement BuildLabelValueRow(string labelText, out TextBlock value, string tooltip)
+        private static StackPanel MakeFieldColumn(string label)
+        {
+            StackPanel sp = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceMd, 0)
+            };
+            if (!string.IsNullOrEmpty(label) && label.Trim().Length > 0)
+            {
+                TextBlock l = EssencialChartGuardTheme.MakeLabel(label, "field");
+                l.FontSize = EssencialChartGuardTheme.FontSizeSmall;
+                l.HorizontalAlignment = HorizontalAlignment.Left;
+                l.Margin = new Thickness(0, 0, 0, 3);
+                sp.Children.Add(l);
+            }
+            return sp;
+        }
+
+        private static StackPanel MakeMetricColumn(string label, string tooltip)
+        {
+            StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
+            TextBlock l = EssencialChartGuardTheme.MakeLabel(label, "field");
+            l.FontSize = EssencialChartGuardTheme.FontSizeSmall;
+            l.Margin = new Thickness(0, 0, 0, 3);
+            if (!string.IsNullOrEmpty(tooltip))
+            {
+                l.ToolTip = EssencialChartGuardTheme.WrapTooltip(tooltip);
+                ToolTipService.SetInitialShowDelay(l, 350);
+                l.Cursor = Cursors.Help;
+            }
+            sp.Children.Add(l);
+            return sp;
+        }
+
+        private static TextBlock MakeMetricValue(string text)
+        {
+            return new TextBlock
+            {
+                Text = text,
+                FontFamily = EssencialChartGuardTheme.FontMono,
+                FontSize = EssencialChartGuardTheme.FontSizeValue,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = EssencialChartGuardTheme.TextPrimary
+            };
+        }
+
+        private static FrameworkElement BuildLabelValueRow(string labelText, out TextBlock value)
         {
             Grid row = new Grid { Margin = EssencialChartGuardTheme.RowSpacing };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -978,25 +1427,18 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             TextBlock label = EssencialChartGuardTheme.CreateLabel(labelText);
             label.VerticalAlignment = VerticalAlignment.Center;
-            label.ToolTip = tooltip;
             Grid.SetColumn(label, 0);
             row.Children.Add(label);
 
             value = EssencialChartGuardTheme.CreateValue("-");
             value.VerticalAlignment = VerticalAlignment.Center;
             value.HorizontalAlignment = HorizontalAlignment.Right;
-            value.ToolTip = tooltip;
             Grid.SetColumn(value, 1);
             row.Children.Add(value);
-
             return row;
         }
 
-        private static FrameworkElement BuildDotRow(
-            string labelText,
-            out System.Windows.Shapes.Ellipse dot,
-            out TextBlock value,
-            string tooltip)
+        private static FrameworkElement BuildDotRow(string labelText, out Ellipse dot, out TextBlock value)
         {
             Grid row = new Grid { Margin = EssencialChartGuardTheme.RowSpacing };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1004,7 +1446,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             TextBlock label = EssencialChartGuardTheme.CreateLabel(labelText);
             label.VerticalAlignment = VerticalAlignment.Center;
-            label.ToolTip = tooltip;
             Grid.SetColumn(label, 0);
             row.Children.Add(label);
 
@@ -1016,7 +1457,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             };
             dot = EssencialChartGuardTheme.CreateStatusDot(EssencialChartGuardTheme.AccentDotIdle);
             dot.Margin = new Thickness(0, 0, 6, 0);
-            dot.ToolTip = tooltip;
             right.Children.Add(dot);
 
             value = new TextBlock
@@ -1026,134 +1466,54 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 FontFamily = EssencialChartGuardTheme.FontUi,
                 FontSize = EssencialChartGuardTheme.FontSizeLabel,
                 VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                ToolTip = tooltip
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
             right.Children.Add(value);
 
             Grid.SetColumn(right, 1);
             row.Children.Add(right);
-
             return row;
         }
 
-        // Two-column row: cells go at columns 0 and 2 (with 6px spacer at column 1).
-        private static Grid TwoColumnRow()
+        // =====================================================================
+        // Helpers
+        // =====================================================================
+
+        private static void DisableInput(Control c)
         {
-            Grid g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6, GridUnitType.Pixel) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            return g;
+            if (c == null) return;
+            c.IsEnabled = false;
+            c.Focusable = false;
+            c.IsTabStop = false;
+            c.Cursor = Cursors.No;
         }
 
-        // Three-column row: cells go at columns 0, 2 and 4 with 6px spacers between them.
-        private static Grid ThreeColumnRow()
+        private static void DisableChildren(Panel p)
         {
-            Grid g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6, GridUnitType.Pixel) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6, GridUnitType.Pixel) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            return g;
-        }
-
-        // Wraps a labelled field into a 2-row stack and places it at the requested cell of
-        // a TwoColumnRow grid (cell 0 -> column 0, cell 1 -> column 2).
-        private static FrameworkElement WrapField(string labelText, FrameworkElement editor, int cell)
-        {
-            StackPanel s = new StackPanel { Orientation = Orientation.Vertical };
-            s.Children.Add(EssencialChartGuardTheme.CreateLabel(labelText));
-            s.Children.Add(editor);
-            Grid.SetColumn(s, cell == 0 ? 0 : 2);
-            return s;
-        }
-
-        // Builds a horizontally split row of two big placeholder buttons with tooltips.
-        private static Grid BuildButtonRow(
-            out Button leftBtn, string leftText, Brush leftAccent, string leftTip,
-            out Button rightBtn, string rightText, Brush rightAccent, string rightTip)
-        {
-            Grid g = TwoColumnRow();
-            leftBtn = BuildPlaceholderButton(leftText, leftAccent, leftTip);
-            Grid.SetColumn(leftBtn, 0);
-            g.Children.Add(leftBtn);
-
-            rightBtn = BuildPlaceholderButton(rightText, rightAccent, rightTip);
-            Grid.SetColumn(rightBtn, 2);
-            g.Children.Add(rightBtn);
-            return g;
-        }
-
-        // Disabled placeholder button: visible identity, no command wiring. We do NOT
-        // attach Click handlers and we keep IsEnabled=false. Tag carries a marker string
-        // in case future code wants to confirm the button has not been wired.
-        private static Button BuildPlaceholderButton(string text, Brush accent, string tooltip)
-        {
-            return new Button
+            if (p == null) return;
+            foreach (UIElement child in p.Children)
             {
-                Content = text ?? string.Empty,
-                Foreground = accent ?? EssencialChartGuardTheme.TextSecondary,
-                Background = EssencialChartGuardTheme.BackgroundInput,
-                BorderBrush = EssencialChartGuardTheme.BorderSubtle,
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(10, 6, 10, 6),
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeLabel,
-                FontWeight = FontWeights.SemiBold,
-                IsEnabled = false,
-                Focusable = false,
-                IsTabStop = false,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                Cursor = System.Windows.Input.Cursors.No,
-                ToolTip = tooltip,
-                Tag = "ecg-placeholder-disabled"
-            };
+                Control c = child as Control;
+                if (c != null) DisableInput(c);
+                Panel inner = child as Panel;
+                if (inner != null) DisableChildren(inner);
+            }
         }
 
-        // Big BUY/SELL/PANIC button. Same disabled contract as BuildPlaceholderButton.
-        private static Button BuildBigButton(string text, Brush accent, string tooltip)
+        private static void ApplyVisibility(UIElement element, bool visible)
         {
-            Button b = BuildPlaceholderButton(text, accent, tooltip);
-            b.Padding = new Thickness(10, 10, 10, 10);
-            b.FontSize = EssencialChartGuardTheme.FontSizeValueLarge;
-            return b;
+            if (element == null) return;
+            element.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        // Small icon button used for strategy/take/etc. action affordances.
-        private static Button BuildIconButton(string text, Brush accent, string tooltip)
+        private static string NullToDash(string s)
         {
-            Button b = BuildPlaceholderButton(text, accent, tooltip);
-            b.MinWidth = 28;
-            b.Padding = new Thickness(6, 4, 6, 4);
-            b.Margin = new Thickness(4, 0, 0, 0);
-            b.FontSize = EssencialChartGuardTheme.FontSizeLabel;
-            return b;
+            return string.IsNullOrEmpty(s) ? "-" : s;
         }
 
-        // Disabled placeholder ComboBox. We do NOT attach SelectionChanged. We add a single
-        // string item so the visible label matches a real ComboBox style, and disable it.
-        private static ComboBox BuildPlaceholderCombo(string text, string tooltip)
+        private static string QuantityToText(int qty)
         {
-            ComboBox c = new ComboBox
-            {
-                IsEnabled = false,
-                Focusable = false,
-                IsTabStop = false,
-                Foreground = EssencialChartGuardTheme.TextPrimary,
-                Background = EssencialChartGuardTheme.BackgroundInput,
-                BorderBrush = EssencialChartGuardTheme.BorderSubtle,
-                BorderThickness = new Thickness(1),
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeLabel,
-                Padding = new Thickness(8, 4, 8, 4),
-                Cursor = System.Windows.Input.Cursors.No,
-                ToolTip = tooltip,
-                Tag = "ecg-placeholder-disabled"
-            };
-            SetComboPlaceholder(c, text);
-            return c;
+            return qty.ToString(CultureInfo.InvariantCulture);
         }
 
         private static void SetComboPlaceholder(ComboBox c, string text)
@@ -1168,113 +1528,35 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             c.Items.Add(item);
         }
 
-        // Disabled placeholder TextBox. We do NOT attach TextChanged.
-        private static TextBox BuildPlaceholderTextBox(string text, string tooltip)
-        {
-            return new TextBox
-            {
-                Text = text ?? string.Empty,
-                IsEnabled = false,
-                Focusable = false,
-                IsTabStop = false,
-                IsReadOnly = true,
-                Foreground = EssencialChartGuardTheme.TextPrimary,
-                Background = EssencialChartGuardTheme.BackgroundInput,
-                BorderBrush = EssencialChartGuardTheme.BorderSubtle,
-                BorderThickness = new Thickness(1),
-                FontFamily = EssencialChartGuardTheme.FontMono,
-                FontSize = EssencialChartGuardTheme.FontSizeLabel,
-                Padding = new Thickness(8, 4, 8, 4),
-                ToolTip = tooltip,
-                Tag = "ecg-placeholder-disabled"
-            };
-        }
-
-        private static TextBlock BuildPlaceholderFootnote(string text)
-        {
-            return new TextBlock
-            {
-                Text = text ?? string.Empty,
-                Foreground = EssencialChartGuardTheme.TextMuted,
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeFootnote,
-                FontStyle = FontStyles.Italic,
-                Margin = new Thickness(0, 6, 0, 0),
-                TextWrapping = TextWrapping.Wrap,
-                IsEnabled = false
-            };
-        }
-
-        private static void ApplyVisibility(UIElement element, bool visible)
-        {
-            if (element == null) return;
-            element.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        private static string NullToDash(string s)
-        {
-            return string.IsNullOrEmpty(s) ? "-" : s;
-        }
-
-        private static string QuantityToText(int quantity)
-        {
-            return quantity <= 0 ? "-" : quantity.ToString(CultureInfo.InvariantCulture);
-        }
-
         private static string BuildTargetsSummary(TakeTargetDraft[] targets)
         {
             if (targets == null || targets.Length == 0) return string.Empty;
-
-            string summary = string.Empty;
-            int visibleCount = 0;
+            string s = string.Empty;
             for (int i = 0; i < targets.Length; i++)
             {
-                TakeTargetDraft target = targets[i];
-                if (target == null) continue;
-
-                string item = FormatTarget(target, visibleCount + 1);
-                if (string.IsNullOrEmpty(item)) continue;
-
-                if (summary.Length > 0) summary += " | ";
-                summary += item;
-                visibleCount++;
+                TakeTargetDraft t = targets[i];
+                if (t == null) continue;
+                if (s.Length > 0) s += " | ";
+                string label = string.IsNullOrEmpty(t.Label) ? ("T" + (i + 1)) : t.Label;
+                string qty = "x" + t.Quantity.ToString(CultureInfo.InvariantCulture);
+                string val = string.IsNullOrEmpty(t.Value) ? "-" : t.Value;
+                string unit = string.IsNullOrEmpty(t.Unit) ? string.Empty : (" " + t.Unit);
+                s += label + " " + qty + " @ " + val + unit;
             }
-
-            return summary;
-        }
-
-        private static string FormatTarget(TakeTargetDraft target, int index)
-        {
-            string label = string.IsNullOrEmpty(target.Label)
-                ? "T" + index.ToString(CultureInfo.InvariantCulture)
-                : target.Label;
-            string qty = target.Quantity > 0
-                ? " x" + target.Quantity.ToString(CultureInfo.InvariantCulture)
-                : string.Empty;
-            string value = string.IsNullOrEmpty(target.Value) ? "-" : target.Value;
-            string unit = string.IsNullOrEmpty(target.Unit) ? string.Empty : " " + target.Unit;
-            return label + qty + " @ " + value + unit;
+            return s;
         }
 
         private static string BuildProtectionSummary(ProtectionDraft draft)
         {
             if (draft == null) return string.Empty;
             if (!string.IsNullOrEmpty(draft.Summary)) return draft.Summary;
-
-            string summary = string.Empty;
-            AppendProtection(ref summary, draft.BreakevenEnabled, "BE");
-            AppendProtection(ref summary, draft.Lock1REnabled, "Lock 1R");
-            AppendProtection(ref summary, draft.Lock2REnabled, "Lock 2R");
-            AppendProtection(ref summary, draft.Lock3REnabled, "Lock 3R");
-            AppendProtection(ref summary, draft.TrailEnabled, "Trail");
-            return summary;
-        }
-
-        private static void AppendProtection(ref string summary, bool enabled, string label)
-        {
-            if (!enabled) return;
-            if (summary.Length > 0) summary += " | ";
-            summary += label;
+            List<string> parts = new List<string>();
+            if (draft.BreakevenEnabled) parts.Add("BE");
+            if (draft.Lock1REnabled) parts.Add("Lock 1R");
+            if (draft.Lock2REnabled) parts.Add("Lock 2R");
+            if (draft.Lock3REnabled) parts.Add("Lock 3R");
+            if (draft.TrailEnabled) parts.Add("Trail");
+            return string.Join(" | ", parts.ToArray());
         }
 
         private void RunOnUi(Action action)
@@ -1285,14 +1567,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 try { action(); } catch { /* never let UI updates surface as crashes */ }
                 return;
             }
-            try
-            {
-                Dispatcher.BeginInvoke(action);
-            }
-            catch
-            {
-                // Dispatcher may already be shutting down during chart teardown -- ignore.
-            }
+            try { Dispatcher.BeginInvoke(action); }
+            catch { /* dispatcher may already be tearing down -- ignore */ }
         }
 
         private static Brush ResolveDot(ConnectionDot dot)
@@ -1312,8 +1588,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         {
             switch (position)
             {
-                case ObservedPosition.Long: return EssencialChartGuardTheme.AccentGreen;
-                case ObservedPosition.Short: return EssencialChartGuardTheme.AccentRed;
+                case ObservedPosition.Long: return EssencialChartGuardTheme.AccentBuy;
+                case ObservedPosition.Short: return EssencialChartGuardTheme.AccentSell;
                 case ObservedPosition.Flat: return EssencialChartGuardTheme.TextPrimary;
                 case ObservedPosition.Unknown:
                 default:
@@ -1331,8 +1607,17 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         Error
     }
 
-    // Lightweight visibility config the host can pass to SetSectionsVisibility. No
-    // persistence in this build. Use All() for "show every section".
+    // Toast severity. Visual-only. Public so a future host can dispatch
+    // user-facing notifications without coupling to the panel internals.
+    public enum ToastKind
+    {
+        Info,
+        Warn,
+        Error
+    }
+
+    // Section visibility flags. Same shape as before so the host's
+    // SetSectionsVisibility call site does not need to change.
     public struct EssencialChartGuardPanelSections
     {
         public bool ShowStrategy;
