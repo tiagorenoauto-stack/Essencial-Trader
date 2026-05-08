@@ -62,6 +62,15 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
         private static readonly object PanelTagSentinel = new object();
         private bool panelInjected;
 
+        // Last visibility we applied to the panel/splitter, so we only mutate
+        // when the indicator's IsVisible flag actually flips. Tri-state: null
+        // means "not yet decided" so the first OnRender always applies.
+        private bool? lastPanelVisible;
+        // Saved column widths captured the last time the panel was visible, so
+        // hide → show restores the user's previous resize.
+        private GridLength savedPanelWidth;
+        private GridLength savedSplitterWidth;
+
         // ---- Read-only chart line renderer (Phase 3.1) ----
         // Built in State.Configure, fed by MaybeUpdateChartLines() whenever
         // the observed snapshot or the draft preview changes, and detached
@@ -106,6 +115,53 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
         {
             // No bar logic. The panel never reacts to bar updates; it lives off observed
             // events plus the dispatcher refresh timer.
+        }
+
+        // Mirror the indicator's "Visible" checkbox onto our injected side
+        // panel. The panel is a Grid column on the ChartControl, not part of
+        // the indicator's plot, so NinjaTrader's IsVisible does not hide it
+        // automatically — we apply it here. OnRender is invoked on the chart's
+        // dispatcher thread, so it is safe to mutate WPF directly.
+        protected override void OnRender(ChartControl chartControl, ChartScale chartScale)
+        {
+            try
+            {
+                if (!panelInjected) return;
+
+                bool wantVisible = IsVisible;
+                if (lastPanelVisible.HasValue && lastPanelVisible.Value == wantVisible)
+                    return;
+
+                ApplyPanelVisibility(wantVisible);
+                lastPanelVisible = wantVisible;
+            }
+            catch (Exception ex)
+            {
+                if (hostLogger != null)
+                    hostLogger.UI("PanelHost OnRender visibility error ex=" + ex.GetType().Name + ":" + ex.Message);
+            }
+        }
+
+        private void ApplyPanelVisibility(bool visible)
+        {
+            if (visible)
+            {
+                if (panel != null) panel.Visibility = Visibility.Visible;
+                if (resizeThumb != null) resizeThumb.Visibility = Visibility.Visible;
+                if (addedColumn != null && savedPanelWidth.Value > 0)
+                    addedColumn.Width = savedPanelWidth;
+                if (splitterColumn != null && savedSplitterWidth.Value > 0)
+                    splitterColumn.Width = savedSplitterWidth;
+            }
+            else
+            {
+                if (addedColumn != null) savedPanelWidth = addedColumn.Width;
+                if (splitterColumn != null) savedSplitterWidth = splitterColumn.Width;
+                if (panel != null) panel.Visibility = Visibility.Collapsed;
+                if (resizeThumb != null) resizeThumb.Visibility = Visibility.Collapsed;
+                if (addedColumn != null) addedColumn.Width = new GridLength(0, GridUnitType.Pixel);
+                if (splitterColumn != null) splitterColumn.Width = new GridLength(0, GridUnitType.Pixel);
+            }
         }
 
         // ============================================================================
@@ -403,6 +459,9 @@ namespace NinjaTrader.NinjaScript.Indicators.EssencialChartGuard
                     panel = null;
                     hostGrid = null;
                     panelInjected = false;
+                    lastPanelVisible = null;
+                    savedPanelWidth = new GridLength(0, GridUnitType.Pixel);
+                    savedSplitterWidth = new GridLength(0, GridUnitType.Pixel);
 
                     if (hostLogger != null) hostLogger.UI("PanelHost panel removed");
                 }
