@@ -922,9 +922,23 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             stopChipsHost = stopChipsWrap;
             stopValueText = new TextBlock { Text = "—" };
 
-            // "Stop móvel" stacked label + combo, attached to the Stop row only.
-            StackPanel trailCol = MakeFieldColumn("Stop móvel");
-            trailCol.Margin = new Thickness(EssencialChartGuardTheme.SpaceMd, 0, 0, 0);
+            // "Stop móvel" lives on the Stop row only — we usually have a
+            // single Stop while Takes can have several chips that need the
+            // full width on their row. Label sits inline to the left of the
+            // combo (compact) instead of stacked above it.
+            StackPanel trailCol = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceMd,
+                                        EssencialChartGuardTheme.SpaceXs, 0, 0)
+            };
+            TextBlock trailLabel = EssencialChartGuardTheme.MakeLabel("Stop móvel", "field");
+            trailLabel.FontSize = EssencialChartGuardTheme.FontSizeSmall;
+            trailLabel.VerticalAlignment = VerticalAlignment.Center;
+            trailLabel.Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceSm, 0);
+            trailCol.Children.Add(trailLabel);
+
             trailCombo = EssencialChartGuardTheme.MakeCombo(
                 "Trail / stop móvel (preview / disabled).", minWidth: 110);
             trailCombo.Items.Add("Off");
@@ -934,10 +948,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             trailCombo.SelectedIndex = 0;
             DisableInput(trailCombo);
             trailCol.Children.Add(trailCombo);
-            // Span both rows vertically so the "Stop móvel" label aligns with
-            // the Takes row and the combo aligns with the Stop row.
-            Grid.SetRow(trailCol, 0);
-            Grid.SetRowSpan(trailCol, 2);
+
+            Grid.SetRow(trailCol, 1);
             Grid.SetColumn(trailCol, 4);
             chipsGrid.Children.Add(trailCol);
 
