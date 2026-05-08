@@ -214,7 +214,9 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 Padding = new Thickness(0, 0, 0, SpaceXs),
                 BorderBrush = GoldDim,
                 BorderThickness = new Thickness(0, 0, 0, 1),
-                Margin = new Thickness(0, SpaceSm, 0, SpaceSm),
+                // Slightly larger bottom margin so the content sits with a
+                // visible breathing space below the gold underline.
+                Margin = new Thickness(0, SpaceSm, 0, SpaceMd),
                 Child = row
             };
         }

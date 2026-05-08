@@ -55,7 +55,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
         // Header
         private TextBlock headerTitle;
-        private TextBlock accountInstrumentText;
+        private TextBlock accountText;
+        private TextBlock instrumentText;
         private Ellipse connDot;
         private Button warnButton;
         private Button settingsButton;
@@ -186,7 +187,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             {
                 string acc = string.IsNullOrEmpty(accountName) ? "?" : accountName;
                 string ins = string.IsNullOrEmpty(instrumentFullName) ? "?" : instrumentFullName;
-                if (accountInstrumentText != null) accountInstrumentText.Text = acc + " · " + ins;
+                if (accountText != null) accountText.Text = acc;
+                if (instrumentText != null) instrumentText.Text = ins;
             });
         }
 
@@ -205,12 +207,10 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             RunOnUi(delegate
             {
-                if (accountInstrumentText != null)
-                {
-                    string acc = string.IsNullOrEmpty(dto.AccountName) ? "?" : dto.AccountName;
-                    string ins = string.IsNullOrEmpty(dto.InstrumentFullName) ? "?" : dto.InstrumentFullName;
-                    accountInstrumentText.Text = acc + " · " + ins;
-                }
+                string accObs = string.IsNullOrEmpty(dto.AccountName) ? "?" : dto.AccountName;
+                string insObs = string.IsNullOrEmpty(dto.InstrumentFullName) ? "?" : dto.InstrumentFullName;
+                if (accountText != null) accountText.Text = accObs;
+                if (instrumentText != null) instrumentText.Text = insObs;
 
                 if (activePosDirectionValue != null)
                 {
@@ -403,7 +403,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             RunOnUi(delegate
             {
                 if (connDot != null) connDot.Fill = EssencialChartGuardTheme.AccentDotIdle;
-                if (accountInstrumentText != null) accountInstrumentText.Text = "—";
+                if (accountText != null) accountText.Text = "—";
+                if (instrumentText != null) instrumentText.Text = "—";
 
                 if (activePosHeader != null) activePosHeader.Text = "(sem posição ativa)";
                 if (activePosPnL != null) activePosPnL.Text = " ";
@@ -538,6 +539,58 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             Content = layered;
         }
 
+        // Build a read-only "select-like" frame used in the header for the
+        // Conta and Instrumento fields: thin gold border + decorative caret,
+        // no dropdown, no event handler. Returns the Border and yields the
+        // inner TextBlock so the caller can mutate the displayed text.
+        private Border MakeSelectLikeFrame(string tooltip, out TextBlock textBlock)
+        {
+            textBlock = new TextBlock
+            {
+                Text = "—",
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = EssencialChartGuardTheme.FontSizeBody,
+                Foreground = EssencialChartGuardTheme.TextSecondary,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            TextBlock caret = new TextBlock
+            {
+                Text = "▾",
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = EssencialChartGuardTheme.FontSizeSmall,
+                Foreground = EssencialChartGuardTheme.GoldDim,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceSm, 0, 0, 0)
+            };
+            Grid frameContent = new Grid();
+            frameContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            frameContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(textBlock, 0);
+            Grid.SetColumn(caret, 1);
+            frameContent.Children.Add(textBlock);
+            frameContent.Children.Add(caret);
+
+            Border frame = new Border
+            {
+                BorderBrush = EssencialChartGuardTheme.GoldDim,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(EssencialChartGuardTheme.SpaceSm,
+                                         EssencialChartGuardTheme.SpaceXs,
+                                         EssencialChartGuardTheme.SpaceSm,
+                                         EssencialChartGuardTheme.SpaceXs),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = frameContent
+            };
+            if (!string.IsNullOrEmpty(tooltip))
+            {
+                frame.ToolTip = EssencialChartGuardTheme.WrapTooltip(tooltip);
+                ToolTipService.SetInitialShowDelay(frame, 350);
+            }
+            return frame;
+        }
+
         private Border BuildHeader()
         {
             Grid grid = new Grid
@@ -547,7 +600,8 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // dot
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // brand
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // account/instrument frame
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // account frame
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // instrument frame
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // warn
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // settings
 
@@ -577,66 +631,36 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             Grid.SetColumn(headerTitle, 1);
             grid.Children.Add(headerTitle);
 
-            // Account/instrument shown inside a select-looking frame: thin gold
-            // border + caret. The frame has no dropdown behavior — it just
-            // makes the read-only text feel like part of the form language.
-            accountInstrumentText = new TextBlock
-            {
-                Text = "—",
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeBody,
-                Foreground = EssencialChartGuardTheme.TextSecondary,
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            };
-            TextBlock caret = new TextBlock
-            {
-                Text = "▾",
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeSmall,
-                Foreground = EssencialChartGuardTheme.GoldDim,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(EssencialChartGuardTheme.SpaceSm, 0, 0, 0)
-            };
-            Grid frameContent = new Grid();
-            frameContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            frameContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(accountInstrumentText, 0);
-            Grid.SetColumn(caret, 1);
-            frameContent.Children.Add(accountInstrumentText);
-            frameContent.Children.Add(caret);
+            // Account/instrument shown inside two select-looking frames side by
+            // side. The frames have no dropdown behavior — they just make the
+            // read-only text feel like part of the form language.
+            Border accountFrame = MakeSelectLikeFrame(
+                "Conta detectada pelo host (snapshot + EventBridge). Leitura — não troca de conta aqui.",
+                out accountText);
+            accountFrame.Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceXs, 0);
+            Grid.SetColumn(accountFrame, 2);
+            grid.Children.Add(accountFrame);
 
-            Border accountInstrumentFrame = new Border
-            {
-                BorderBrush = EssencialChartGuardTheme.GoldDim,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(3),
-                Padding = new Thickness(EssencialChartGuardTheme.SpaceSm,
-                                         EssencialChartGuardTheme.SpaceXs,
-                                         EssencialChartGuardTheme.SpaceSm,
-                                         EssencialChartGuardTheme.SpaceXs),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, EssencialChartGuardTheme.SpaceSm, 0),
-                Child = frameContent,
-                ToolTip = EssencialChartGuardTheme.WrapTooltip(
-                    "Conta e instrumento detectados pelo host (snapshot + EventBridge). Leitura — não troca de conta aqui.")
-            };
-            ToolTipService.SetInitialShowDelay(accountInstrumentFrame, 350);
-            Grid.SetColumn(accountInstrumentFrame, 2);
-            grid.Children.Add(accountInstrumentFrame);
+            Border instrumentFrame = MakeSelectLikeFrame(
+                "Instrumento detectado pelo chart. Leitura — não troca de instrumento aqui.",
+                out instrumentText);
+            instrumentFrame.Margin = new Thickness(EssencialChartGuardTheme.SpaceXs, 0,
+                                                    EssencialChartGuardTheme.SpaceSm, 0);
+            Grid.SetColumn(instrumentFrame, 3);
+            grid.Children.Add(instrumentFrame);
 
             warnButton = MakeIconButton("⚠",
                 "Aviso. Visual reservado; nenhuma ação está ligada nesta versão.");
             warnButton.Foreground = EssencialChartGuardTheme.AccentWarn;
             warnButton.Visibility = Visibility.Collapsed;
             warnButton.IsEnabled = false;
-            Grid.SetColumn(warnButton, 3);
+            Grid.SetColumn(warnButton, 4);
             grid.Children.Add(warnButton);
 
             settingsButton = MakeGoldIconButton("⚙",
                 "Configurações (preview / disabled). Não está ligada nesta versão.");
             settingsButton.IsEnabled = false;
-            Grid.SetColumn(settingsButton, 4);
+            Grid.SetColumn(settingsButton, 5);
             grid.Children.Add(settingsButton);
 
             return new Border
@@ -871,45 +895,38 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         {
             StackPanel sp = new StackPanel { Orientation = Orientation.Vertical };
 
-            // Takes inline chips row
-            Grid takesInline = BuildInlineChipsRow(
+            // Two-row chips grid (Takes / Stop) sharing exact same column metrics.
+            // Cols: label · input · '+' · chips · trail (Stop móvel only on Stop row).
+            Grid chipsGrid = new Grid();
+            chipsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // 0 label
+            chipsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // 1 input
+            chipsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // 2 +
+            chipsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 3 chips
+            chipsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // 4 trail (stop móvel)
+            chipsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });        // takes
+            chipsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });        // stop
+
+            BuildProtectionChipsRow(chipsGrid, row: 0,
                 labelText: "Takes",
                 labelTooltip: "Alvos. Preview / disabled. Adicionar pelo + ainda não está ligado.",
                 inputAssign: tb => takeInputBox = tb,
-                addAssign: null,
                 addTooltip: "Adicionar alvo (preview / disabled).",
                 chipsHost: out takesList);
-            sp.Children.Add(takesInline);
 
-            // Stop inline + trail combo on the same Grid
-            Grid stopRow = new Grid { Margin = new Thickness(0, EssencialChartGuardTheme.SpaceSm, 0, EssencialChartGuardTheme.SpaceSm) };
-            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
-            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
-            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
-            stopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            Grid stopInlineRow = BuildInlineChipsRow(
+            BuildProtectionChipsRow(chipsGrid, row: 1,
                 labelText: "Stop",
                 labelTooltip: "Stop loss. Preview / disabled.",
                 inputAssign: tb => stopInputBox = tb,
-                addAssign: null,
                 addTooltip: "Aplicar valor (preview / disabled).",
                 chipsHost: out WrapPanel stopChipsWrap);
             stopChipsHost = stopChipsWrap;
             stopValueText = new TextBlock { Text = "—" };
-            Grid.SetColumn(stopInlineRow, 0);
-            Grid.SetColumnSpan(stopInlineRow, 5);
-            stopRow.Children.Add(stopInlineRow);
 
+            // "Stop móvel" stacked label + combo, attached to the Stop row only.
             StackPanel trailCol = MakeFieldColumn("Stop móvel");
-            trailCol.HorizontalAlignment = HorizontalAlignment.Stretch;
-            trailCol.Margin = new Thickness(0);
+            trailCol.Margin = new Thickness(EssencialChartGuardTheme.SpaceMd, 0, 0, 0);
             trailCombo = EssencialChartGuardTheme.MakeCombo(
-                "Trail / stop móvel (preview / disabled).", minWidth: 90);
-            trailCombo.HorizontalAlignment = HorizontalAlignment.Stretch;
+                "Trail / stop móvel (preview / disabled).", minWidth: 110);
             trailCombo.Items.Add("Off");
             trailCombo.Items.Add("A cada 1pt");
             trailCombo.Items.Add("A cada 5pts");
@@ -917,38 +934,33 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             trailCombo.SelectedIndex = 0;
             DisableInput(trailCombo);
             trailCol.Children.Add(trailCombo);
-            Grid.SetColumn(trailCol, 6);
-            stopRow.Children.Add(trailCol);
-            sp.Children.Add(stopRow);
+            // Span both rows vertically so the "Stop móvel" label aligns with
+            // the Takes row and the combo aligns with the Stop row.
+            Grid.SetRow(trailCol, 0);
+            Grid.SetRowSpan(trailCol, 2);
+            Grid.SetColumn(trailCol, 4);
+            chipsGrid.Children.Add(trailCol);
 
-            // Lock R + BE row
-            Grid lockRow = new Grid { Margin = new Thickness(0, 3, 0, 0) };
-            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
-            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
-            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
-            lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            sp.Children.Add(chipsGrid);
 
-            lock1RBtn = EssencialChartGuardTheme.MakeButton("Travar 1R", ButtonRole.Secondary,
-                "Travar 1R (preview / disabled).");
-            lock1RBtn.MinHeight = 32;
-            DisableInput(lock1RBtn);
+            // Lock 1R / 2R / 3R / BE row — four equal columns.
+            Grid lockRow = new Grid { Margin = new Thickness(0, EssencialChartGuardTheme.SpaceMd, 0, 0) };
+            for (int i = 0; i < 4; i++)
+            {
+                lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                if (i < 3)
+                    lockRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(EssencialChartGuardTheme.SpaceSm) });
+            }
+
+            lock1RBtn = MakeLockButton("Travar 1R", "Travar 1R (preview / disabled).");
             Grid.SetColumn(lock1RBtn, 0);
             lockRow.Children.Add(lock1RBtn);
 
-            lock2RBtn = EssencialChartGuardTheme.MakeButton("Travar 2R", ButtonRole.Secondary,
-                "Travar 2R (preview / disabled).");
-            lock2RBtn.MinHeight = 32;
-            DisableInput(lock2RBtn);
+            lock2RBtn = MakeLockButton("Travar 2R", "Travar 2R (preview / disabled).");
             Grid.SetColumn(lock2RBtn, 2);
             lockRow.Children.Add(lock2RBtn);
 
-            lock3RBtn = EssencialChartGuardTheme.MakeButton("Travar 3R", ButtonRole.Secondary,
-                "Travar 3R (preview / disabled).");
-            lock3RBtn.MinHeight = 32;
-            DisableInput(lock3RBtn);
+            lock3RBtn = MakeLockButton("Travar 3R", "Travar 3R (preview / disabled).");
             Grid.SetColumn(lock3RBtn, 4);
             lockRow.Children.Add(lock3RBtn);
 
@@ -967,6 +979,89 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
 
             return EssencialChartGuardTheme.MakeSection("Proteção", sp,
                 "Takes, stop, trail e travamentos de R. Tudo preview / disabled nesta versão.");
+        }
+
+        // Build a (label · input · '+' · chips) row inside an existing Grid,
+        // using the Grid's first 4 columns. Designed for the protection card so
+        // Takes and Stop align column-by-column.
+        private void BuildProtectionChipsRow(Grid host, int row, string labelText,
+            string labelTooltip, Action<TextBox> inputAssign, string addTooltip,
+            out WrapPanel chipsHost)
+        {
+            const double LabelMinWidth = 44;
+            const double InputWidth = 64;
+            const double AddSize = 26;
+
+            TextBlock label = EssencialChartGuardTheme.MakeLabel(labelText, "field");
+            label.FontSize = EssencialChartGuardTheme.FontSizeSmall;
+            label.VerticalAlignment = VerticalAlignment.Center;
+            label.MinWidth = LabelMinWidth;
+            label.Margin = new Thickness(0, row == 0 ? 0 : EssencialChartGuardTheme.SpaceXs,
+                                          EssencialChartGuardTheme.SpaceSm, 0);
+            if (!string.IsNullOrEmpty(labelTooltip))
+            {
+                label.ToolTip = EssencialChartGuardTheme.WrapTooltip(labelTooltip);
+                ToolTipService.SetInitialShowDelay(label, 350);
+                label.Cursor = Cursors.Help;
+            }
+            Grid.SetRow(label, row); Grid.SetColumn(label, 0);
+            host.Children.Add(label);
+
+            TextBox input = EssencialChartGuardTheme.MakeNumberBox(string.Empty,
+                "Distância na unidade selecionada (preview / disabled).", width: InputWidth);
+            input.MinHeight = AddSize;
+            input.VerticalAlignment = VerticalAlignment.Center;
+            input.Margin = new Thickness(0, row == 0 ? 0 : EssencialChartGuardTheme.SpaceXs, 0, 0);
+            DisableInput(input);
+            Grid.SetRow(input, row); Grid.SetColumn(input, 1);
+            host.Children.Add(input);
+            if (inputAssign != null) inputAssign(input);
+
+            Button addBtn = new Button
+            {
+                Content = "+",
+                FontFamily = EssencialChartGuardTheme.FontUi,
+                FontSize = 15,
+                FontWeight = FontWeights.Bold,
+                Foreground = EssencialChartGuardTheme.Gold,
+                Background = Brushes.Transparent,
+                BorderBrush = EssencialChartGuardTheme.GoldDim,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(0),
+                MinWidth = AddSize,
+                MinHeight = AddSize,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceXs,
+                                        row == 0 ? 0 : EssencialChartGuardTheme.SpaceXs, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                FocusVisualStyle = null,
+                Style = EssencialChartGuardTheme.MakeButtonStyle(),
+                Cursor = Cursors.Hand
+            };
+            addBtn.ToolTip = EssencialChartGuardTheme.WrapTooltip(addTooltip);
+            ToolTipService.SetInitialShowDelay(addBtn, 350);
+            DisableInput(addBtn);
+            Grid.SetRow(addBtn, row); Grid.SetColumn(addBtn, 2);
+            host.Children.Add(addBtn);
+
+            chipsHost = new WrapPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(EssencialChartGuardTheme.SpaceMd,
+                                        row == 0 ? 0 : EssencialChartGuardTheme.SpaceXs, 0, 0)
+            };
+            Grid.SetRow(chipsHost, row); Grid.SetColumn(chipsHost, 3);
+            host.Children.Add(chipsHost);
+        }
+
+        private Button MakeLockButton(string content, string tooltip)
+        {
+            Button b = EssencialChartGuardTheme.MakeButton(content, ButtonRole.Secondary, tooltip);
+            b.MinHeight = 32;
+            DisableInput(b);
+            return b;
         }
 
         private Border BuildActivePositionSection()
