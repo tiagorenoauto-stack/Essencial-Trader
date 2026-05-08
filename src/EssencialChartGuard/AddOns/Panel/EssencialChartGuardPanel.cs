@@ -69,11 +69,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
         // Header summary chip (Position · qty · avg · wo) -- carried from the
         // existing panel so the host's SetObservedState keeps lighting up the
         // exact same line.
-        private TextBlock summaryPositionText;
-        private TextBlock summaryQtyText;
-        private TextBlock summaryAvgText;
-        private TextBlock summaryWorkingOrdersText;
-
         // Entry section
         private ComboBox orderTypeCombo;
         private StackPanel limitPriceRow;
@@ -226,15 +221,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                     string ins = string.IsNullOrEmpty(dto.InstrumentFullName) ? "?" : dto.InstrumentFullName;
                     headerSubtitle.Text = acc + " · " + ins;
                 }
-
-                if (summaryPositionText != null)
-                {
-                    summaryPositionText.Text = positionText;
-                    summaryPositionText.Foreground = positionBrush;
-                }
-                if (summaryQtyText != null) summaryQtyText.Text = "qty " + qtyText;
-                if (summaryAvgText != null) summaryAvgText.Text = "avg " + avgPriceText;
-                if (summaryWorkingOrdersText != null) summaryWorkingOrdersText.Text = "wo " + workingText;
 
                 if (activePosDirectionValue != null)
                 {
@@ -430,15 +416,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 if (connDot != null) connDot.Fill = EssencialChartGuardTheme.AccentDotIdle;
                 if (headerSubtitle != null) headerSubtitle.Text = "—";
 
-                if (summaryPositionText != null)
-                {
-                    summaryPositionText.Text = "-";
-                    summaryPositionText.Foreground = EssencialChartGuardTheme.TextSecondary;
-                }
-                if (summaryQtyText != null) summaryQtyText.Text = "qty -";
-                if (summaryAvgText != null) summaryAvgText.Text = "avg -";
-                if (summaryWorkingOrdersText != null) summaryWorkingOrdersText.Text = "wo -";
-
                 if (activePosHeader != null) activePosHeader.Text = "(sem posição ativa)";
                 if (activePosPnL != null) activePosPnL.Text = " ";
 
@@ -555,11 +532,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
             topGroup.Children.Add(BuildAtmStrategyBar());
             content.Children.Add(EssencialChartGuardTheme.MakeBareCard(topGroup));
 
-            // Header summary chip line lives just below the bare card so the
-            // observed Position/qty/avg/wo are easy to read. Keeps the host's
-            // SetObservedState wiring identical.
-            content.Children.Add(BuildHeaderSummaryRow());
-
             content.Children.Add(BuildEntrySection());
             content.Children.Add(BuildActivePositionSection());
             content.Children.Add(BuildRiskSection());
@@ -642,67 +614,6 @@ namespace NinjaTrader.NinjaScript.AddOns.EssencialChartGuard.Panel
                 BorderBrush = EssencialChartGuardTheme.GoldDim,
                 BorderThickness = new Thickness(0, 0, 0, 1),
                 Child = grid
-            };
-        }
-
-        // Compact summary row carried from the previous panel: one-line
-        // "<Position> · qty <n> · avg <price> · wo <n>" so the observed
-        // state is glanceable.
-        private FrameworkElement BuildHeaderSummaryRow()
-        {
-            StackPanel summary = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Margin = new Thickness(0, EssencialChartGuardTheme.SpaceSm, 0, EssencialChartGuardTheme.SpaceSm)
-            };
-
-            summaryPositionText = new TextBlock
-            {
-                Text = "-",
-                Foreground = EssencialChartGuardTheme.TextSecondary,
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeValue,
-                FontWeight = FontWeights.SemiBold,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            summary.Children.Add(summaryPositionText);
-            summary.Children.Add(BuildHeaderSeparator());
-
-            summaryQtyText = BuildHeaderChip("qty -");
-            summary.Children.Add(summaryQtyText);
-            summary.Children.Add(BuildHeaderSeparator());
-
-            summaryAvgText = BuildHeaderChip("avg -");
-            summary.Children.Add(summaryAvgText);
-            summary.Children.Add(BuildHeaderSeparator());
-
-            summaryWorkingOrdersText = BuildHeaderChip("wo -");
-            summary.Children.Add(summaryWorkingOrdersText);
-
-            return summary;
-        }
-
-        private static TextBlock BuildHeaderChip(string text)
-        {
-            return new TextBlock
-            {
-                Text = text ?? string.Empty,
-                Foreground = EssencialChartGuardTheme.TextPrimary,
-                FontFamily = EssencialChartGuardTheme.FontMono,
-                FontSize = EssencialChartGuardTheme.FontSizeLabel,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-        }
-
-        private static FrameworkElement BuildHeaderSeparator()
-        {
-            return new TextBlock
-            {
-                Text = "  ·  ",
-                Foreground = EssencialChartGuardTheme.TextMuted,
-                FontFamily = EssencialChartGuardTheme.FontUi,
-                FontSize = EssencialChartGuardTheme.FontSizeLabel,
-                VerticalAlignment = VerticalAlignment.Center
             };
         }
 
